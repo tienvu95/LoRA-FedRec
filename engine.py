@@ -9,6 +9,7 @@ import copy
 from data import UserItemRatingDataset
 from torch.utils.data import DataLoader
 from collections import OrderedDict
+import client
 
 import logging
 
@@ -85,35 +86,37 @@ class Engine(object):
         for key in self.server_model_param.keys():
             self.server_model_param[key].data = self.server_model_param[key].data / len(round_user_params)
 
-
-    def fed_train_a_round(self, all_train_data, round_id):
-        """train a round."""
-        # sample users participating in single round.
+    def sample_client(self):
         if self.config['clients_sample_ratio'] <= 1:
             num_participants = int(self.config['num_users'] * self.config['clients_sample_ratio'])
             participants = random.sample(range(self.config['num_users']), num_participants)
         else:
             participants = random.sample(range(self.config['num_users']), self.config['clients_sample_num'])
+        return participants
+
+    def fed_train_a_round(self, all_train_data, round_id):
+        """train a round."""
+        # sample users participating in single round.
+        participants = self.sample_client()
 
         # store users' model parameters of current round.
         round_participant_params = {}
         # store all the users' train loss and mae.
         all_loss = {}
 
+        # Server
         if self.config.get("lora", False) and self.config.get('lora_freeze_B', False):
             shared_lora_B = copy.deepcopy(self.model.embedding_item.lora_B.detach()) # detached tensor share the same storage with the original tensor. 
             shared_lora_B = torch.nn.init.normal_(shared_lora_B)
             shared_lora_B = shared_lora_B.to(self._device)
+
         # perform model update for each participated user.
         # Numper of epoch per user: config['local_epoch']
         for user in participants:
             loss = 0
             # copy the client model architecture from self.model
             model_client = copy.deepcopy(self.model)
-            # for the first round, client models copy initialized parameters directly.
-            # for other rounds, client models receive updated item embedding and score function from server.
             
-
             if round_id != 0:
                 user_param_dict = copy.deepcopy(self.model.state_dict())
                 if user in self.client_model_params.keys():
