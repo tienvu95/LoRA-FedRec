@@ -1,10 +1,12 @@
+import json
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import datetime
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4"
 import argparse
-from mlp import MLPEngine
+from engine import MLPEngine
 from data import SampleGenerator
 from utils import *
 
@@ -87,12 +89,13 @@ logging.info('Range of itemId is [{}, {}]'.format(rating.itemId.min(), rating.it
 sample_generator = SampleGenerator(ratings=rating)
 validate_data = sample_generator.validate_data
 test_data = sample_generator.test_data
+engine.init_clients(sample_generator)
 
 hit_ratio_list = []
 ndcg_list = []
 val_hr_list = []
 val_ndcg_list = []
-train_loss_list = []
+train_log = []
 test_loss_list = []
 val_loss_list = []
 best_val_hr = 0
@@ -103,10 +106,10 @@ for round in range(config['num_round']):
 
     all_train_data = sample_generator.store_all_train_data(config['num_negative'])
     logging.info('Training phase!')
-    tr_loss = engine.fed_train_a_round(all_train_data, round_id=round)
+    log_dict = engine.fed_train_a_round(round_id=round)
     # break
-    train_loss_list.append(tr_loss)
-    logging.info(list(train_loss_list[-1].values())[:10])
+    train_log.append(log_dict)
+    # logging.info(list(train_log[-1]['loss'].values())[:10])
 
     logging.info('Testing phase!')
     hit_ratio, ndcg, te_loss = engine.fed_evaluate(test_data)
@@ -140,6 +143,11 @@ str = current_time + '-' + 'latent_dim: ' + str(config['latent_dim']) + '-' + 'l
 file_name = "sh_result/"+config['dataset']+".txt"
 with open(file_name, 'a') as file:
     file.write(str + '\n')
+
+train_log = pd.concat(train_log, ignore_index=True)
+file_name = Path('sh_result') / config['dataset'] / f"{current_time}.log"
+file_name.parent.mkdir(parents=True, exist_ok=True)
+train_log.to_csv(file_name, index=False)
 
 logging.info('PFedRec')
 logging.info('clients_sample_ratio: {}, lr_eta: {}, bz: {}, lr: {}, dataset: {}, factor: {}, negatives: {}'.

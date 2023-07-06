@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 /log
+/sh_result

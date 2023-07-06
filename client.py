@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 import pandas as pd
 from mlp import MLP
+import random
 import data
-import rec
 import pickle
 import logging
 
@@ -34,7 +34,7 @@ def get_opts(model, lr, l2_regularization, num_items, lr_eta):
   optimizers = [optimizer, optimizer_i]
   return optimizers
 
-def train(net, criterion, trainloader, epochs, config):
+def train(net, criterion, trainloader, epochs, config, device):
   """Train the model on the training set."""
   optimizers = get_opts(net, config['lr'], config['l2_regularization'], config['num_items'], config['lr_eta'])
   optimizer, optimizer_i = optimizers
@@ -44,7 +44,7 @@ def train(net, criterion, trainloader, epochs, config):
     for _, items, ratings in trainloader:
       assert isinstance(_, torch.LongTensor)
       ratings = ratings.float()
-      items, ratings = items.to(DEVICE), ratings.to(DEVICE)
+      items, ratings = items.to(device), ratings.to(device)
 
       # update score function.
       optimizer.zero_grad()
@@ -103,42 +103,89 @@ def load_data(cid, dataset_name, num_negative):
   all_train_data = sample_generator.store_all_train_data(num_negative)
   return all_train_data, validate_data, test_data
 
+def instance_user_train_loader(user_train_data, batch_size):
+    """instance a user's train loader."""
+    dataset = data.UserItemRatingDataset(user_tensor=torch.LongTensor(user_train_data[0]),
+                                    item_tensor=torch.LongTensor(user_train_data[1]),
+                                    target_tensor=torch.FloatTensor(user_train_data[2]))
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
   
-
-# #############################################################################
-# Federating the pipeline with Flower
-# #############################################################################
-
-# Define Flower client
 class Client(object):
-  def __init__(self, trainloader, valloader, config):
-    # self.net = net
+  net_class = MLP
+  def __init__(self, cid, train_ratings, negative_sample, config):
+    self.cid = cid
     self.criterion = torch.nn.BCELoss()
-    self.trainloader = trainloader
-    self.valloader = valloader
+    # self.train_ratings = train_ratings
+    self.positive_sample = train_ratings['itemId'].unique()
+    self.negative_sample = negative_sample
     self.config = config
+    self.num_negative = self.config['num_negative']
+    # self.valloader = valloader
     # self._metron = rec.MetronAtK(top_k=10)
+  
+  def get_dataloader(self):
+    # include userId, itemId, rating, negative_items and negatives five columns.
+    user_item = []
+    user_rating = []
+    users = []
+    for pos_item in self.positive_sample:
+      user_item.append(pos_item)
+      user_item += random.sample(self.negative_sample, self.num_negative)
+      user_rating.append(float(1))
+      user_rating += [float(0)] * self.num_negative
+      users += [self.cid] * (1 + self.num_negative)
+    user_dataloader = instance_user_train_loader([users, user_item, user_rating], batch_size=self.config['batch_size'])
+    return user_dataloader
 
-  def get_parameters(self, net, config):
+  @classmethod
+  def get_parameters(cls, net, config):
     global_params = [val.cpu().numpy() for _, val in net.embedding_item.state_dict().items()]
     local_params = [val.cpu().numpy() for _, val in net.affine_output.state_dict().items()]
     return global_params, local_params
 
   def set_parameters(self, net, global_params, local_params):
+    net = self.set_global_parameters(global_params)
+    net = self.set_local_parameters(local_params)
+    return net
+  
+  @classmethod
+  def set_global_parameters(cls, net, global_params):
     global_params_dict = zip(net.embedding_item.state_dict().keys(), global_params)
     global_state_dict = OrderedDict({k: torch.tensor(v) for k, v in global_params_dict})
-    net.embedding_item.load_global_state_dict(global_state_dict, strict=True)
+    net.embedding_item.load_state_dict(global_state_dict, strict=True)
+    return net
 
+  def set_local_parameters(self, net, local_params):
     local_params_dict = zip(net.affine_output.state_dict().keys(), local_params)
     local_state_dict = OrderedDict({k: torch.tensor(v) for k, v in local_params_dict})
     net.affine_output.load_state_dict(local_state_dict, strict=True)
     return net
 
-  def fit(self, net, parameters, config):
-    net = self.set_parameters(net, parameters)
-    loss = train(net, self.criterion, self.trainloader, epochs=1, config=self.config)
-    return self.get_parameters(net, config={}), len(self.trainloader.dataset), {"loss": loss}
+  def fit(self, net, parameters, config, device):
+    # net = self.set_parameters(net, parameters)
+    trainloader = self.get_dataloader()
+    loss = train(net, self.criterion, trainloader, epochs=1, config=self.config, device=device)
+    return self.get_parameters(net, config={}), len(trainloader.dataset), {"loss": loss}
   
+  def local_train(self, config, client_model_params, server_params, device):
+    return_dict = {}
+    log_dict = {}
+    # Init local net and set parameters.
+    local_net = self.net_class(config)
+    self.set_global_parameters(local_net, server_params)
+    if client_model_params is not None:
+        local_net = self.set_local_parameters(local_net, client_model_params)
+    # Training
+    local_net.train()
+    (global_params, local_params), ds_size, metrics = self.fit(local_net, None, None, device=device)
+    
+    update_global_params = torch.tensor(global_params[0] - server_params[0])
+    log_dict['matrix_rank'] = torch.linalg.matrix_rank(update_global_params).item()
+    log_dict['loss'] = metrics['loss']
+
+    return_dict['parameters'] = (global_params, local_params)
+    return_dict['log_dict'] = log_dict
+    return return_dict
 
 #   def evaluate(self, parameters, config):
 #     self.set_parameters(parameters)
@@ -146,16 +193,3 @@ class Client(object):
 #     # return float(0.0), len(self.testloader.dataset), {"hit_ratio": float(hit_ratio), "ndcg": float(ndcg), }
 #     peval_output = rec.personalize_evaluate(self.net, self.criterion, self._metron, self.valloader, self.config['uid'], DEVICE)
 #     return float(0.0), len(self.valloader), {"peval_output": pickle.dumps(peval_output)}
-
-
-def client_fn(cid: str, config):
-  # Load model and data (simple CNN, CIFAR-10)
-  # net = MLPLoRA(config).to(DEVICE)
-  net = MLP(config).to(DEVICE)
-  all_train_data, validate_data, test_data = load_data(cid, config['dataset'], config['num_negative'])
-  uid = int(cid)
-  user_train_data = [all_train_data[0][uid], all_train_data[1][uid], all_train_data[2][uid]]
-  user_dataloader = instance_user_train_loader(config['batch_size'], user_train_data)
-  del (all_train_data, validate_data)
-  config['uid'] = int(cid)
-  return FlowerClient(net, user_dataloader, test_data, config)

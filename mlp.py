@@ -1,5 +1,4 @@
 import torch
-from engine import Engine
 
 #  ------------------------------------------------------------------------------------------
 #  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -154,16 +153,3 @@ class MLPLoRA(torch.nn.Module):
     def is_lora(self):
         return True
 
-class MLPEngine(Engine):
-    """Engine for training & evaluating GMF model"""
-    def __init__(self, config):
-        if config['lora']:
-            print("Using LoRA model!")
-            self.model = MLPLoRA(config)
-        else:
-            self.model = MLP(config)
-        if config['use_cuda'] is True:
-            # use_cuda(True, config['device_id'])
-            self.model.cuda()
-        super(MLPEngine, self).__init__(config)
-        print(self.model)

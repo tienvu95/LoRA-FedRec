@@ -1,3 +1,4 @@
+import time
 import torch
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
@@ -9,12 +10,29 @@ import copy
 from data import UserItemRatingDataset
 from torch.utils.data import DataLoader
 from collections import OrderedDict
-import client
+import client as cl
+from mlp import MLP, MLPLoRA
+import numpy as np
+import multiprocessing as mp
+import pandas as pd
+# import torch.multiprocessing as mp
 
 import logging
 
 logger = logging.getLogger(__name__)
 
+
+class FedAvgStrategy(object):
+    def __init__(self) -> None:
+        pass
+
+    @torch.no_grad()
+    def aggregate(self, round_user_params):
+        """receive client models' parameters in a round, aggregate them and store the aggregated result for server."""
+        # aggregate item embedding and score function via averaged aggregation.
+        aggregated_params = list(zip(*round_user_params.values()))
+        aggregated_params = [sum(p_list)/len(p_list) for p_list in aggregated_params]
+        return aggregated_params
 
 class Engine(object):
     """Meta Engine for training & evaluating NCF model
@@ -25,17 +43,25 @@ class Engine(object):
     def __init__(self, config):
         self.config = config  # model configuration
         self._metron = MetronAtK(top_k=10)
-        # self._writer = SummaryWriter(log_dir='runs/{}'.format(config['alias']))  # tensorboard writer
-        # self._writer.add_text('config', str(config), 0)
         self.server_model_param = {}
         self.client_model_params = {}
-        # explicit feedback
-        # self.crit = torch.nn.MSELoss()
-        # implicit feedback
+        self.personalize_params = {}
         self.crit = torch.nn.BCELoss()
         # mae metric
         self.mae = torch.nn.L1Loss()
+        self.strategy = FedAvgStrategy()
         self._device = 'cpu'
+
+    def init_clients(self, sample_generator):
+        self.clients = {}
+        all_train_ratings = sample_generator.train_ratings
+        all_negatives = sample_generator.negatives
+        for uid in range(self.config['num_users']):
+            train_ratings = all_train_ratings[all_train_ratings.userId == uid]
+            negatives = all_negatives[all_negatives.userId == uid]['negative_items'].tolist()[0]
+            self.clients[uid] = cl.Client(uid, train_ratings, negatives, self.config)
+            # user_train_data = [all_train_data[0][uid], all_train_data[1][uid], all_train_data[2][uid]]
+            # user_dataloader = instance_user_train_loader(user_train_data, batch_size=self.config['batch_size'])
 
     def instance_user_train_loader(self, user_train_data):
         """instance a user's train loader."""
@@ -44,146 +70,49 @@ class Engine(object):
                                         target_tensor=torch.FloatTensor(user_train_data[2]))
         return DataLoader(dataset, batch_size=self.config['batch_size'], shuffle=True)
 
-    def fed_train_single_batch(self, model_client, batch_data, optimizers):
-        """train a batch and return an updated model."""
-        # load batch data.
-        _, items, ratings = batch_data[0], batch_data[1], batch_data[2]
-        ratings = ratings.float()
-
-        if self.config['use_cuda'] is True:
-            items, ratings = items.cuda(), ratings.cuda()
-
-        optimizer, optimizer_i = optimizers
-        # update score function.
-        optimizer.zero_grad()
-        ratings_pred = model_client(items)
-        loss = self.crit(ratings_pred.view(-1), ratings)
-        loss.backward()
-        optimizer.step()
-
-        # update item embedding.
-        optimizer_i.zero_grad()
-        ratings_pred = model_client(items)
-        loss_i = self.crit(ratings_pred.view(-1), ratings)
-        loss_i.backward()
-        optimizer_i.step()
-        return model_client, loss_i.item()
-
-    def aggregate_clients_params(self, round_user_params):
-        """receive client models' parameters in a round, aggregate them and store the aggregated result for server."""
-        # aggregate item embedding and score function via averaged aggregation.
-        t = 0
-        for user in round_user_params.keys():
-            # load a user's parameters.
-            user_params = round_user_params[user]
-            # print(user_params)
-            if t == 0:
-                self.server_model_param = copy.deepcopy(user_params)
-            else:
-                for key in user_params.keys():
-                    self.server_model_param[key].data += user_params[key].data
-            t += 1
-        for key in self.server_model_param.keys():
-            self.server_model_param[key].data = self.server_model_param[key].data / len(round_user_params)
-
     def sample_client(self):
-        if self.config['clients_sample_ratio'] <= 1:
+        if self.config['clients_sample_ratio'] == 1:
+            participants = range(self.config['num_users'])
+        elif self.config['clients_sample_ratio'] < 1:
             num_participants = int(self.config['num_users'] * self.config['clients_sample_ratio'])
             participants = random.sample(range(self.config['num_users']), num_participants)
         else:
             participants = random.sample(range(self.config['num_users']), self.config['clients_sample_num'])
         return participants
 
-    def fed_train_a_round(self, all_train_data, round_id):
+    def fed_train_a_round(self, round_id):
         """train a round."""
         # sample users participating in single round.
         participants = self.sample_client()
-
         # store users' model parameters of current round.
         round_participant_params = {}
-        # store all the users' train loss and mae.
-        all_loss = {}
+        server_params, _ = cl.Client.get_parameters(self.model, None)
+        log_dict = {}
+        
+        start = time.time()
+        results = [self.clients[uid].local_train(self.config, 
+                                                 self.client_model_params.get(uid, None), 
+                                                 server_params, 
+                                                 self._device) for uid in participants]
+        logging.info("Training time: {}".format(time.time() - start))
 
-        # Server
-        if self.config.get("lora", False) and self.config.get('lora_freeze_B', False):
-            shared_lora_B = copy.deepcopy(self.model.embedding_item.lora_B.detach()) # detached tensor share the same storage with the original tensor. 
-            shared_lora_B = torch.nn.init.normal_(shared_lora_B)
-            shared_lora_B = shared_lora_B.to(self._device)
-
-        # perform model update for each participated user.
-        # Numper of epoch per user: config['local_epoch']
-        for user in participants:
-            loss = 0
-            # copy the client model architecture from self.model
-            model_client = copy.deepcopy(self.model)
-            
-            if round_id != 0:
-                user_param_dict = copy.deepcopy(self.model.state_dict())
-                if user in self.client_model_params.keys():
-                    for key in self.client_model_params[user].keys():
-                        user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data).to(self._device)
-                user_param_dict['embedding_item.weight'] = copy.deepcopy(self.server_model_param['embedding_item.weight'].data).to(self._device)
-                model_client.load_state_dict(user_param_dict)
-            
-            if model_client.is_lora:
-                # reset lora parameters and freeze global item embedding weights.
-                model_client.embedding_item.reset_lora_parameters()
-                model_client.embedding_item.weight.requires_grad = False
-                model_client.embedding_item.merged = False
-                if self.config.get('lora_freeze_B', False):
-                    model_client.embedding_item.lora_B.requires_grad = False
-                    model_client.embedding_item.lora_B.copy_(shared_lora_B)
-                    # logger.info("Freezing lora_B")
-
-            # Defining optimizers
-            # optimizer is responsible for updating score function.
-            optimizer = torch.optim.SGD(model_client.affine_output.parameters(),
-                                        lr=self.config['lr'], weight_decay=self.config['l2_regularization'])  # MLP optimizer
-            # optimizer_i is responsible for updating item embedding.
-            optimizer_i = torch.optim.SGD(model_client.embedding_item.parameters(),
-                                          lr=self.config['lr'] * self.config['num_items'] * self.config['lr_eta'],
-                                        # lr=self.config['lr'] * self.config['lr_eta'],
-                                        weight_decay=self.config['l2_regularization'])  # Item optimizer
-            optimizers = [optimizer, optimizer_i]
-
-            # load current user's training data and instance a train loader.
-            user_train_data = [all_train_data[0][user], all_train_data[1][user], all_train_data[2][user]]
-            user_dataloader = self.instance_user_train_loader(user_train_data)
-            model_client.train()
-            sample_num = 0
-            # update client model.
-            for epoch in range(self.config['local_epoch']):
-                for batch_id, batch in enumerate(user_dataloader):
-                    assert isinstance(batch[0], torch.LongTensor)
-                    model_client, loss_u = self.fed_train_single_batch(model_client, batch, optimizers)
-                    loss += loss_u * len(batch[0])
-                    sample_num += len(batch[0]) 
-                all_loss[user] = loss / sample_num
-            # obtain client model parameters.
-
-            with torch.no_grad():
-                # Post-tuning process for lora.
-                if model_client.is_lora:
-                    model_client.embedding_item.merge_lora_weights()
-                    model_client.embedding_item.reset_lora_parameters(to_zero=True)
-
-            client_param = model_client.state_dict()
-            # store client models' local parameters for personalization.
-            self.client_model_params[user] = copy.deepcopy(client_param)
-            for key in self.client_model_params[user].keys():
-                self.client_model_params[user][key] = self.client_model_params[user][key].data.cpu()
-            # store client models' local parameters for global update.
-            round_participant_params[user] = copy.deepcopy(self.client_model_params[user])
-            # Del private parameters
-
-            del round_participant_params[user]['affine_output.weight']
-            del round_participant_params[user]['affine_output.bias']
-            if model_client.is_lora:
-                del round_participant_params[user]['embedding_item.lora_A']
-                del round_participant_params[user]['embedding_item.lora_B']
+        for i, user in enumerate(participants):
+            global_params, local_params = results[i]['parameters']
+            self.client_model_params[user] = local_params
+            self.personalize_params[user] = global_params
+            round_participant_params[user] = global_params
+            log_dict[user] = results[i]['log_dict']
+            log_dict[user]['uid'] = user
+        aggregated_params = self.strategy.aggregate(round_participant_params)
+        self.model = cl.Client.set_global_parameters(self.model, aggregated_params)
+        
+        log_dict[-1] = {"matrix_rank": torch.linalg.matrix_rank(torch.tensor(aggregated_params[0] - server_params[0])).item()}
+        df = pd.DataFrame(log_dict).T
+        df['round'] = round_id
+        print(df.head())
         # aggregate client models in server side.
-        self.aggregate_clients_params(round_participant_params)
-        return all_loss
+        
+        return df
 
 
     def fed_evaluate(self, evaluate_data):
@@ -207,15 +136,13 @@ class Engine(object):
         all_loss = {}
         for user in range(self.config['num_users']):
             # load each user's mlp parameters.
-            user_model = copy.deepcopy(self.model)
-            if user in self.client_model_params.keys():
-                user_param_dict = copy.deepcopy(self.client_model_params[user])
-                for key in user_param_dict.keys():
-                    user_param_dict[key] = user_param_dict[key].data.to(self._device)
-            else:
-                user_param_dict = copy.deepcopy(self.model.state_dict())
-            user_model.load_state_dict(user_param_dict)
-            user_model.eval()
+            local_net = copy.deepcopy(self.model)
+            client = self.clients[user]
+            if user in self.client_model_params:
+                local_net = client.set_local_parameters(local_net, self.client_model_params[user])
+            if user in self.personalize_params:
+                local_net = client.set_global_parameters(local_net, self.personalize_params[user])
+            local_net.eval()
             with torch.no_grad():
                 # obtain user's positive test information.
                 test_user = test_users[user: user + 1]
@@ -224,8 +151,8 @@ class Engine(object):
                 negative_user = negative_users[user*99: (user+1)*99]
                 negative_item = negative_items[user*99: (user+1)*99]
                 # perform model prediction.
-                test_score = user_model(test_item)
-                negative_score = user_model(negative_item)
+                test_score = local_net(test_item)
+                negative_score = local_net(negative_item)
                 if user == 0:
                     test_scores = test_score
                     negative_scores = negative_score
@@ -256,3 +183,17 @@ class Engine(object):
         assert hasattr(self, 'model'), 'Please specify the exact model !'
         model_dir = self.config['model_dir'].format(alias, epoch_id, hit_ratio, ndcg)
         save_checkpoint(self.model, model_dir)
+
+class MLPEngine(Engine):
+    """Engine for training & evaluating GMF model"""
+    def __init__(self, config):
+        if config['lora']:
+            print("Using LoRA model!")
+            self.model = MLPLoRA(config)
+        else:
+            self.model = MLP(config)
+        if config['use_cuda'] is True:
+            # use_cuda(True, config['device_id'])
+            self.model.cuda()
+        super(MLPEngine, self).__init__(config)
+        print(self.model)
