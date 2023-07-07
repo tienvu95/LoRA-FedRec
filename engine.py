@@ -34,6 +34,20 @@ class FedAvgStrategy(object):
         aggregated_params = [sum(p_list)/len(p_list) for p_list in aggregated_params]
         return aggregated_params
 
+class FedLoRAAvgStrategy(object):
+    def __init__(self) -> None:
+        pass
+
+    @torch.no_grad()
+    def aggregate(self, round_user_params):
+        """receive client models' parameters in a round, aggregate them and store the aggregated result for server."""
+        # aggregate item embedding and score function via averaged aggregation.
+        aggregated_params = list(zip(*round_user_params.values()))
+        for layer_i in range(len(aggregated_params)):
+            aggregated_params[layer_i] = [(lora_A @ lora_B) * scaling for lora_A, lora_B, scaling in aggregated_params[layer_i]]
+        aggregated_params = [sum(p_list)/len(p_list) for p_list in aggregated_params]
+        return aggregated_params
+
 class Engine(object):
     """Meta Engine for training & evaluating NCF model
 
@@ -49,7 +63,7 @@ class Engine(object):
         self.crit = torch.nn.BCELoss()
         # mae metric
         self.mae = torch.nn.L1Loss()
-        self.strategy = FedAvgStrategy()
+        self.strategy = FedLoRAAvgStrategy()
         self._device = 'cpu'
 
     def init_clients(self, sample_generator):
@@ -59,7 +73,7 @@ class Engine(object):
         for uid in range(self.config['num_users']):
             train_ratings = all_train_ratings[all_train_ratings.userId == uid]
             negatives = all_negatives[all_negatives.userId == uid]['negative_items'].tolist()[0]
-            self.clients[uid] = cl.Client(uid, train_ratings, negatives, self.config)
+            self.clients[uid] = cl.LoRAClient(uid, train_ratings, negatives, self.config)
             # user_train_data = [all_train_data[0][uid], all_train_data[1][uid], all_train_data[2][uid]]
             # user_dataloader = instance_user_train_loader(user_train_data, batch_size=self.config['batch_size'])
 
@@ -86,7 +100,7 @@ class Engine(object):
         participants = self.sample_client()
         # store users' model parameters of current round.
         round_participant_params = {}
-        server_params, _ = cl.Client.get_parameters(self.model, None)
+        server_params = cl.LoRAClient.get_server_params(self.model)
         log_dict = {}
         
         start = time.time()
@@ -97,19 +111,22 @@ class Engine(object):
         logging.info("Training time: {}".format(time.time() - start))
 
         for i, user in enumerate(participants):
-            global_params, local_params = results[i]['parameters']
+            global_params, local_params, personalize_params = results[i]['parameters']
             self.client_model_params[user] = local_params
-            self.personalize_params[user] = global_params
+            self.personalize_params[user] = personalize_params
             round_participant_params[user] = global_params
             log_dict[user] = results[i]['log_dict']
             log_dict[user]['uid'] = user
         aggregated_params = self.strategy.aggregate(round_participant_params)
-        self.model = cl.Client.set_global_parameters(self.model, aggregated_params)
+        self.model = cl.LoRAClient.set_global_parameters(self.model, aggregated_params)
         
         log_dict[-1] = {"matrix_rank": torch.linalg.matrix_rank(torch.tensor(aggregated_params[0] - server_params[0])).item()}
         df = pd.DataFrame(log_dict).T
         df['round'] = round_id
-        print(df.head())
+        logging.info('\n' +  df.head().to_string())
+        logging.info(f"Set param time: {df['set_param_time'].sum()}", )
+        logging.info(f"Prepare data time: {df['prepare_data_time'].sum()}", )
+        logging.info(f"Fit time: {df['fit_time'].sum()}")
         # aggregate client models in server side.
         
         return df

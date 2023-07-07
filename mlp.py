@@ -46,8 +46,8 @@ class Embedding(nn.Embedding, LoRALayer):
                            merge_weights=merge_weights)
         # Actual trainable parameters
         if r > 0:
-            self.lora_A = nn.Parameter(self.weight.new_zeros((r, num_embeddings)))
-            self.lora_B = nn.Parameter(self.weight.new_zeros((embedding_dim, r)))
+            self.lora_A = nn.Parameter(self.weight.new_zeros((num_embeddings, r)))
+            self.lora_B = nn.Parameter(self.weight.new_zeros((r, embedding_dim)))
             self.scaling = self.lora_alpha / self.r
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
@@ -69,7 +69,7 @@ class Embedding(nn.Embedding, LoRALayer):
     
     def merge_lora_weights(self):
         if self.r > 0:
-            self.weight.data += (self.lora_B @ self.lora_A).transpose(0, 1) * self.scaling
+            self.weight.data += (self.lora_A @ self.lora_B) * self.scaling
             self.merged = True
 
     # def train(self, mode: bool = True):
@@ -90,10 +90,10 @@ class Embedding(nn.Embedding, LoRALayer):
             result = nn.Embedding.forward(self, x)
             if self.r > 0:
                 after_A = F.embedding(
-                    x, self.lora_A.transpose(0, 1), self.padding_idx, self.max_norm,
+                    x, self.lora_A, self.padding_idx, self.max_norm,
                     self.norm_type, self.scale_grad_by_freq, self.sparse
                 )
-                result += (after_A @ self.lora_B.transpose(0, 1)) * self.scaling
+                result += (after_A @ self.lora_B) * self.scaling
             return result
         else:
             return nn.Embedding.forward(self, x)

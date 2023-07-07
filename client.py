@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import time
 import warnings
 
 import flwr as fl
@@ -10,10 +11,9 @@ from torchvision.transforms import Compose, ToTensor, Normalize
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 import pandas as pd
-from mlp import MLP
+from mlp import MLP, MLPLoRA
 import random
 import data
-import pickle
 import logging
 
 import multiprocessing as mp
@@ -27,7 +27,8 @@ def get_opts(model, lr, l2_regularization, num_items, lr_eta):
   optimizer = torch.optim.SGD(model.affine_output.parameters(),
                               lr=lr, weight_decay=l2_regularization)  # MLP optimizer
   # optimizer_i is responsible for updating item embedding.
-  optimizer_i = torch.optim.SGD(model.embedding_item.parameters(),
+  embedding_params = [p for p in model.embedding_item.parameters() if p.requires_grad]
+  optimizer_i = torch.optim.SGD(embedding_params,
                                 lr=lr * num_items * lr_eta,
                               # lr=lr * self.config['lr_eta'],
                               weight_decay=l2_regularization)  # Item optimizer
@@ -48,19 +49,22 @@ def train(net, criterion, trainloader, epochs, config, device):
 
       # update score function.
       optimizer.zero_grad()
+      optimizer_i.zero_grad()
       ratings_pred = net(items)
       loss_score_fn = criterion(ratings_pred.view(-1), ratings)
       loss_score_fn.backward()
       optimizer.step()
-
-      # update item embedding.
-      optimizer_i.zero_grad()
-      ratings_pred = net(items)
-      loss_item_emb = criterion(ratings_pred.view(-1), ratings)
-      loss_item_emb.backward()
       optimizer_i.step()
 
-      loss += loss_item_emb.item() * len(_)
+      # update item embedding.
+      # optimizer_i.zero_grad()
+      # ratings_pred = net(items)
+      # loss_item_emb = criterion(ratings_pred.view(-1), ratings)
+      # loss_item_emb.backward()
+      # optimizer_i.step()
+
+      # loss += loss_item_emb.item() * len(_)
+      loss += loss_score_fn.item() * len(_)
       num_sample += len(_)
     loss = loss / num_sample
   return loss
@@ -161,35 +165,76 @@ class Client(object):
     net.affine_output.load_state_dict(local_state_dict, strict=True)
     return net
 
-  def fit(self, net, parameters, config, device):
+  def fit(self, net, trainloader, config, device):
     # net = self.set_parameters(net, parameters)
-    trainloader = self.get_dataloader()
     loss = train(net, self.criterion, trainloader, epochs=1, config=self.config, device=device)
-    return self.get_parameters(net, config={}), len(trainloader.dataset), {"loss": loss}
+    return {"loss": loss}
   
   def local_train(self, config, client_model_params, server_params, device):
     return_dict = {}
     log_dict = {}
+    start = time.time()
     # Init local net and set parameters.
     local_net = self.net_class(config)
-    self.set_global_parameters(local_net, server_params)
+    self.set_global_parameters(local_net, server_params, training=True)
     if client_model_params is not None:
-        local_net = self.set_local_parameters(local_net, client_model_params)
+      local_net = self.set_local_parameters(local_net, client_model_params)
     # Training
     local_net.train()
-    (global_params, local_params), ds_size, metrics = self.fit(local_net, None, None, device=device)
+    set_param_time = time.time() - start
+    log_dict['set_param_time'] = set_param_time
+
+    start = time.time()
+    trainloader = self.get_dataloader()
+    prepair_data_time = time.time()  - start
+    ds_size = len(trainloader.dataset)
+    log_dict['prepare_data_time'] = prepair_data_time
     
-    update_global_params = torch.tensor(global_params[0] - server_params[0])
-    log_dict['matrix_rank'] = torch.linalg.matrix_rank(update_global_params).item()
+    start = time.time()
+    metrics = self.fit(local_net, trainloader, None, device=device)
+    fit_time = time.time() - start
+    log_dict['fit_time'] = fit_time
+    log_dict['ds_size'] = ds_size
+    
+    params = self.get_parameters(local_net, config={})
+    # global_params = params[0]
+    # update_global_params = torch.tensor(global_params[0] - server_params[0])
+    # log_dict['matrix_rank'] = torch.linalg.matrix_rank(update_global_params).item()
+    log_dict['matrix_rank'] = 'na'
     log_dict['loss'] = metrics['loss']
 
-    return_dict['parameters'] = (global_params, local_params)
+    return_dict['parameters'] = params
     return_dict['log_dict'] = log_dict
     return return_dict
 
-#   def evaluate(self, parameters, config):
-#     self.set_parameters(parameters)
-#     # hit_ratio, ndcg, te_loss = rec.evaluate(self.net, self.criterion, self._metron, self.valloader, self.config["num_users"], DEVICE)
-#     # return float(0.0), len(self.testloader.dataset), {"hit_ratio": float(hit_ratio), "ndcg": float(ndcg), }
-#     peval_output = rec.personalize_evaluate(self.net, self.criterion, self._metron, self.valloader, self.config['uid'], DEVICE)
-#     return float(0.0), len(self.valloader), {"peval_output": pickle.dumps(peval_output)}
+class LoRAClient(Client):
+  net_class = MLPLoRA
+
+  @classmethod
+  def get_server_params(cls, net):
+    return [net.embedding_item.weight.data.cpu().numpy()]
+
+  @classmethod
+  def get_parameters(cls, net, config):
+    global_params = []
+    # global_params = [net.embedding_item.weight.data.cpu().numpy()]
+    global_params.append([net.embedding_item.lora_A.data.cpu().numpy(), net.embedding_item.lora_B.data.cpu().numpy(), net.embedding_item.scaling])
+    local_params = [val.cpu().numpy() for _, val in net.affine_output.state_dict().items()]
+    net.embedding_item.merge_lora_weights()
+    personalize_params = [net.embedding_item.weight.data.cpu().numpy()]
+    return global_params, local_params, personalize_params
+
+  @classmethod
+  def set_global_parameters(cls, net, global_params, training=False):
+    net.embedding_item.weight.data = torch.tensor(global_params[0])
+    if not training:
+      net.embedding_item.merged = True
+    else:
+      net.embedding_item.reset_lora_parameters(to_zero=False)
+    return net
+
+  def set_local_parameters(self, net, local_params):
+    local_params_dict = zip(net.affine_output.state_dict().keys(), local_params)
+    local_state_dict = OrderedDict({k: torch.tensor(v) for k, v in local_params_dict})
+    net.affine_output.load_state_dict(local_state_dict, strict=True)
+    return net
