@@ -7,9 +7,9 @@ _C = CN()
 _C.seed = 0
 
 _C.FED = CN()
-_C.FED.num_clients = 50
+_C.FED.num_clients = 120
 _C.FED.aggregation_epochs = 400
-_C.FED.local_epochs = 3
+_C.FED.local_epochs = 2
 
 _C.DATA = CN()
 _C.DATA.root = '../data/Data'
@@ -31,20 +31,16 @@ _C.MODEL.dropout = 0.0
 _C.MODEL.use_lora = False
 _C.MODEL.lora_r = None
 _C.MODEL.lora_alpha = None
-_C.MODEL.mf_dim = 16
-_C.MODEL.layers = [64, 32, 16, 8]
-_C.MODEL.reg_layers = [0, 0, 0, 0]
-_C.MODEL.reg_mf = 0
 
 _C.TRAIN = CN()
 _C.TRAIN.lr = 1e-3
-_C.TRAIN.weight_decay = 0.01
+_C.TRAIN.weight_decay = None
 _C.TRAIN.lr_scheduler = None
 _C.TRAIN.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 _C.EXP = CN()
 _C.EXP.save = False
-_C.EXP.save_path = 'pretrained/standard/'
+_C.EXP.output_dir = 'pretrained/standard/'
 
 _C.EVAL = CN()
 _C.EVAL.topk = 10

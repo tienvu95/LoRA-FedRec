@@ -1,0 +1,10 @@
+MODEL:
+  factor_num: 16
+  num_layers: 3
+  dropout: 3
+  user_lora: True
+  lora_r: 8
+  lora_alpha: 8
+
+EXP:
+  output_dir: exp/lora4_ncf16
