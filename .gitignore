@@ -161,4 +161,6 @@ cython_debug/
 
 */log
 MF/sh_result
-/data/lastfm-2k
+/data
+/Federated-Recommendation-Neural-Collaborative-Filtering
+/federeco

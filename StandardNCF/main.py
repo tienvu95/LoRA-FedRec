@@ -17,51 +17,7 @@ import data_utils
 from tqdm import tqdm
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--lr", 
-	type=float, 
-	default=0.001, 
-	help="learning rate")
-parser.add_argument("--dropout", 
-	type=float,
-	default=0.0,  
-	help="dropout rate")
-parser.add_argument("--batch_size", 
-	type=int, 
-	default=256, 
-	help="batch size for training")
-parser.add_argument("--epochs", 
-	type=int,
-	default=20,  
-	help="training epoches")
-parser.add_argument("--top_k", 
-	type=int, 
-	default=10, 
-	help="compute metrics@top_k")
-parser.add_argument("--factor_num", 
-	type=int,
-	default=32, 
-	help="predictive factors numbers in the model")
-parser.add_argument("--num_layers", 
-	type=int,
-	default=3, 
-	help="number of layers in MLP model")
-parser.add_argument("--num_ng", 
-	type=int,
-	default=4, 
-	help="sample negative items for training")
-parser.add_argument("--test_num_ng", 
-	type=int,
-	default=99, 
-	help="sample part of negative items for testing")
-parser.add_argument("--out", 
-	default=True,
-	help="save model or not")
-parser.add_argument("--gpu", 
-	type=str,
-	default="0",  
-	help="gpu card ID")
-args = parser.parse_args()
+args = config.get_parser().parse_args()
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 cudnn.benchmark = True
@@ -69,14 +25,7 @@ device = torch.device("cuda")
 
 
 ############################## PREPARE DATASET ##########################
-train_data, test_data, user_num ,item_num, train_mat = data_utils.load_all()
-
-# construct the train and test datasets
-# train_dataset = data_utils.NCFData(
-# 		train_data, item_num, train_mat, args.num_ng, True)
 train_dataset = data_utils.MovieLen1MDataset(config.main_path, train=True, num_negatives=args.num_ng)
-# test_dataset = data_utils.NCFData(
-# 		# test_data, item_num, train_mat, 0, False)
 test_dataset = data_utils.MovieLen1MDataset(config.main_path, train=False)
 train_loader = data.DataLoader(train_dataset,
 		batch_size=args.batch_size, shuffle=True, num_workers=4)
@@ -93,7 +42,9 @@ else:
 	GMF_model = None
 	MLP_model = None
 
-model = model.NCF(user_num, item_num, args.factor_num, args.num_layers, 
+print("Num users", train_dataset.num_user)
+print("Num items", train_dataset.num_item)
+model = model.NCF(train_dataset.num_user, train_dataset.num_item, args.factor_num, args.num_layers, 
 						args.dropout, config.model, GMF_model, MLP_model)
 model.to(device)	
 loss_function = nn.BCEWithLogitsLoss()
@@ -118,12 +69,8 @@ for epoch in range(args.epochs):
 	start_time = time.time()
 	_, sample_time = log_time(lambda : train_loader.dataset.sample_negatives())
 	# _, sample_time = log_time(lambda : train_loader.dataset.ng_sample())
-
 	print("Sampling neg time", sample_time)
-	print(len(train_loader))
-
-	
-	for batch_idx, (user, item, label) in tqdm(enumerate(train_loader)):
+	for batch_idx, (user, item, label) in tqdm(enumerate(train_loader), total=len(train_loader)):
 		user = user.to(device)
 		item = item.to(device)
 		label = label.float().to(device)
