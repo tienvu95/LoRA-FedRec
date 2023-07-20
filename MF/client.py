@@ -145,7 +145,12 @@ class Client(object):
   def get_parameters(cls, net, config):
     global_params = [val.cpu().numpy() for _, val in net.embedding_item.state_dict().items()]
     local_params = [val.cpu().numpy() for _, val in net.affine_output.state_dict().items()]
-    return global_params, local_params
+    personalize_params = global_params
+    return global_params, local_params, personalize_params
+
+  @classmethod
+  def get_server_params(cls, net):
+    return [val.cpu().numpy() for _, val in net.embedding_item.state_dict().items()]
 
   def set_parameters(self, net, global_params, local_params):
     net = self.set_global_parameters(global_params)
@@ -153,7 +158,7 @@ class Client(object):
     return net
   
   @classmethod
-  def set_global_parameters(cls, net, global_params):
+  def set_global_parameters(cls, net, global_params, training=False):
     global_params_dict = zip(net.embedding_item.state_dict().keys(), global_params)
     global_state_dict = OrderedDict({k: torch.tensor(v) for k, v in global_params_dict})
     net.embedding_item.load_state_dict(global_state_dict, strict=True)
@@ -171,7 +176,7 @@ class Client(object):
     return {"loss": loss}
   
   def local_train(self, config, client_model_params, server_params, device):
-    return_dict = {}
+    return_dict = {'uid': self.cid}
     log_dict = {}
     start = time.time()
     # Init local net and set parameters.
@@ -180,6 +185,7 @@ class Client(object):
     if client_model_params is not None:
       local_net = self.set_local_parameters(local_net, client_model_params)
     # Training
+    local_net.to(device)
     local_net.train()
     set_param_time = time.time() - start
     log_dict['set_param_time'] = set_param_time
@@ -197,10 +203,10 @@ class Client(object):
     log_dict['ds_size'] = ds_size
     
     params = self.get_parameters(local_net, config={})
-    # global_params = params[0]
-    # update_global_params = torch.tensor(global_params[0] - server_params[0])
-    # log_dict['matrix_rank'] = torch.linalg.matrix_rank(update_global_params).item()
-    log_dict['matrix_rank'] = 'na'
+    global_params = params[0]
+    update_global_params = torch.tensor(global_params[0] - server_params[0])
+    log_dict['matrix_rank'] = torch.linalg.matrix_rank(update_global_params).item()
+    # log_dict['matrix_rank'] = 'na'
     log_dict['loss'] = metrics['loss']
 
     return_dict['parameters'] = params

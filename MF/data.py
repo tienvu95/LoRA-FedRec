@@ -3,6 +3,7 @@ import random
 import pandas as pd
 from copy import deepcopy
 from torch.utils.data import DataLoader, Dataset
+import numpy as np
 
 random.seed(0)
 
@@ -33,6 +34,16 @@ class SampleGenerator(object):
         args:
             ratings: pd.DataFrame, which contains 4 columns = ['userId', 'itemId', 'rating', 'timestamp']
         """
+
+        # Reindex
+        user_id = rating[['uid']].drop_duplicates().reindex()
+        user_id['userId'] = np.arange(len(user_id))
+        rating = pd.merge(rating, user_id, on=['uid'], how='left')
+        item_id = rating[['mid']].drop_duplicates()
+        item_id['itemId'] = np.arange(len(item_id))
+        rating = pd.merge(rating, item_id, on=['mid'], how='left')
+        rating = rating[['userId', 'itemId', 'rating', 'timestamp']]
+
         assert 'userId' in ratings.columns
         assert 'itemId' in ratings.columns
         assert 'rating' in ratings.columns
@@ -65,6 +76,7 @@ class SampleGenerator(object):
     def _split_loo(self, ratings):
         """leave one out train/test split """
         ratings['rank_latest'] = ratings.groupby(['userId'])['timestamp'].rank(method='first', ascending=False)
+        print(ratings.head())
         test = ratings[ratings['rank_latest'] == 1]
         val = ratings[ratings['rank_latest'] == 2]
         train = ratings[ratings['rank_latest'] > 2]
@@ -152,3 +164,34 @@ class SampleGenerator(object):
         assert test_users == sorted(test_users)
         return [torch.LongTensor(test_users), torch.LongTensor(test_items), torch.LongTensor(negative_users),
                 torch.LongTensor(negative_items)]
+
+class LastFMSampler(SampleGenerator):
+    def __init__(self, data_root):
+        self.data_root = data_root
+        # self.train_ratings = self._load_data(data_root + "/train.txt")
+        # self.val_ratings = self._load_data(data_root + "/valid.txt")
+        # self.test_ratings = self._load_data(data_root + "/test.txt")
+        # all_ratings = pd.concat([self.train_ratings, self.val_ratings, self.test_ratings])
+        all_ratings = self._load_data(data_root + "/ratings.txt")
+        user_id = all_ratings[['uid']].drop_duplicates().reindex()
+        user_id['userId'] = np.arange(len(user_id))
+        all_ratings = pd.merge(all_ratings, user_id, on=['uid'], how='left')
+        item_id = all_ratings[['mid']].drop_duplicates()
+        item_id['itemId'] = np.arange(len(item_id))
+        all_ratings = pd.merge(all_ratings, item_id, on=['mid'], how='left')
+        all_ratings = all_ratings[['userId', 'itemId', 'rating', 'timestamp']]
+        print(all_ratings.head())
+        # create negative item samples for NCF learning
+        # 99 negatives for each user's test item
+        self.user_pool = set(all_ratings['userId'].unique())
+        self.item_pool = set(all_ratings['itemId'].unique())
+        self.negatives = self._sample_negative(all_ratings)
+        self.train_ratings, self.val_ratings, self.test_ratings = self._split_loo(all_ratings)
+    
+    def _load_data(self, data_path):
+        ratings = pd.read_csv(data_path,sep='\t')
+        ratings['rating'] = 1.0
+        ratings.rename(columns={'user_id': 'uid', 'item_id': 'mid'}, inplace=True)
+        # user_pool = set(ratings['userId'].unique())
+        # item_pool = set(ratings['itemId'].unique())
+        return ratings

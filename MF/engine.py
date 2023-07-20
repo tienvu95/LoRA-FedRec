@@ -15,7 +15,7 @@ from mlp import MLP, MLPLoRA
 import numpy as np
 import multiprocessing as mp
 import pandas as pd
-# import torch.multiprocessing as mp
+import torch.multiprocessing as mp
 
 import logging
 
@@ -57,14 +57,23 @@ class Engine(object):
     def __init__(self, config):
         self.config = config  # model configuration
         self._metron = MetronAtK(top_k=10)
-        self.server_model_param = {}
-        self.client_model_params = {}
-        self.personalize_params = {}
         self.crit = torch.nn.BCELoss()
         # mae metric
         self.mae = torch.nn.L1Loss()
-        self.strategy = FedLoRAAvgStrategy()
+        if config['lora']:
+            self.strategy = FedLoRAAvgStrategy()
+            self.client_class = cl.LoRAClient
+        else:
+            self.strategy = FedAvgStrategy()
+            self.client_class = cl.Client
+
         self._device = 'cpu'
+
+        # self.mp_manager = mp.Manager()
+        self.server_model_param = {}
+        self.client_model_params = {}
+        self.personalize_params = {}
+
 
     def init_clients(self, sample_generator):
         self.clients = {}
@@ -73,7 +82,8 @@ class Engine(object):
         for uid in range(self.config['num_users']):
             train_ratings = all_train_ratings[all_train_ratings.userId == uid]
             negatives = all_negatives[all_negatives.userId == uid]['negative_items'].tolist()[0]
-            self.clients[uid] = cl.LoRAClient(uid, train_ratings, negatives, self.config)
+            self.clients[uid] = self.client_class(uid, train_ratings, negatives, self.config)
+
             # user_train_data = [all_train_data[0][uid], all_train_data[1][uid], all_train_data[2][uid]]
             # user_dataloader = instance_user_train_loader(user_train_data, batch_size=self.config['batch_size'])
 
@@ -99,24 +109,35 @@ class Engine(object):
         # sample users participating in single round.
         participants = self.sample_client()
         # store users' model parameters of current round.
-        round_participant_params = {}
-        server_params = cl.LoRAClient.get_server_params(self.model)
-        log_dict = {}
-        
-        start = time.time()
-        results = [self.clients[uid].local_train(self.config, 
-                                                 self.client_model_params.get(uid, None), 
-                                                 server_params, 
-                                                 self._device) for uid in participants]
-        logging.info("Training time: {}".format(time.time() - start))
+        server_params = self.client_class.get_server_params(self.model)
 
-        for i, user in enumerate(participants):
-            global_params, local_params, personalize_params = results[i]['parameters']
+        log_dict = {}
+        round_participant_params = {}
+
+        def call_client_proc(uid):
+            client = self.clients[uid]
+            return client.local_train(self.config, 
+                                    self.client_model_params.get(uid, None), 
+                                    server_params, 
+                                    self._device)
+
+        def callback(user_result):
+            user = user_result['uid']
+            global_params, local_params, personalize_params = user_result['parameters']
             self.client_model_params[user] = local_params
             self.personalize_params[user] = personalize_params
             round_participant_params[user] = global_params
-            log_dict[user] = results[i]['log_dict']
+            log_dict[user] = user_result['log_dict']
             log_dict[user]['uid'] = user
+        
+        start = time.time()
+        # with mp.Pool() as pool:
+        #     r = pool.map_async(self.call_client_proc, participants, callback=callback)
+        #     r.wait()
+        #     print(round_participant_params.keys())
+        _ = [callback(call_client_proc(uid)) for uid in participants]
+        logging.info("Training time: {}".format(time.time() - start))
+        
         aggregated_params = self.strategy.aggregate(round_participant_params)
         self.model = cl.LoRAClient.set_global_parameters(self.model, aggregated_params)
         
@@ -165,7 +186,6 @@ class Engine(object):
                 test_user = test_users[user: user + 1]
                 test_item = test_items[user: user + 1]
                 # obtain user's negative test information.
-                negative_user = negative_users[user*99: (user+1)*99]
                 negative_item = negative_items[user*99: (user+1)*99]
                 # perform model prediction.
                 test_score = local_net(test_item)
@@ -186,6 +206,15 @@ class Engine(object):
             negative_users = negative_users.cpu()
             negative_items = negative_items.cpu()
             negative_scores = negative_scores.cpu()
+        
+        test_users = test_users.view(-1)
+        test_items = test_items.view(-1)
+        test_scores = test_scores.view(-1)
+        negative_users = negative_users.view(-1)
+        negative_items = negative_items.view(-1)
+        negative_scores = negative_scores.view(-1)
+
+        print(test_users.shape, test_items.shape, test_scores.shape, negative_users.shape, negative_items.shape, negative_scores.shape)
         self._metron.subjects = [test_users.data.view(-1).tolist(),
                                  test_items.data.view(-1).tolist(),
                                  test_scores.data.view(-1).tolist(),

@@ -7,7 +7,7 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4"
 import argparse
 from engine import MLPEngine
-from data import SampleGenerator
+from data import LastFMSampler, SampleGenerator
 from utils import *
 
 
@@ -48,6 +48,8 @@ elif config['dataset'] == 'ml-100k':
 elif config['dataset'] == 'lastfm-2k':
     config['num_users'] = 1600
     config['num_items'] = 12454
+    config['num_users'] = 1101
+    # config['num_items'] = 18022
 elif config['dataset'] == 'amazon':
     config['num_users'] = 8072
     config['num_items'] = 11830
@@ -68,25 +70,21 @@ if config['dataset'] == "ml-1m":
 elif config['dataset'] == "ml-100k":
     rating = pd.read_csv(dataset_dir, sep=",", header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
 elif config['dataset'] == "lastfm-2k":
-    rating = pd.read_csv(dataset_dir, sep=",", header=None, names=['uid', 'mid', 'rating', 'timestamp'],  engine='python')
+    # rating = pd.read_csv(dataset_dir, sep=",", header=None, names=['uid', 'mid', 'rating', 'timestamp'],  engine='python')
+    sample_generator = LastFMSampler(data_root="data/" + config['dataset'])
+    pass
 elif config['dataset'] == "amazon":
     rating = pd.read_csv(dataset_dir, sep=",", header=None, names=['uid', 'mid', 'rating', 'timestamp'], engine='python')
     rating = rating.sort_values(by='uid', ascending=True)
 else:
     pass
-# Reindex
-user_id = rating[['uid']].drop_duplicates().reindex()
-user_id['userId'] = np.arange(len(user_id))
-rating = pd.merge(rating, user_id, on=['uid'], how='left')
-item_id = rating[['mid']].drop_duplicates()
-item_id['itemId'] = np.arange(len(item_id))
-rating = pd.merge(rating, item_id, on=['mid'], how='left')
-rating = rating[['userId', 'itemId', 'rating', 'timestamp']]
-logging.info('Range of userId is [{}, {}]'.format(rating.userId.min(), rating.userId.max()))
-logging.info('Range of itemId is [{}, {}]'.format(rating.itemId.min(), rating.itemId.max()))
 
 # DataLoader for training
-sample_generator = SampleGenerator(ratings=rating)
+if not config['dataset'] == "lastfm-2k":
+    sample_generator = SampleGenerator(ratings=rating)
+
+logging.info('Range of userId is [{}, {}]'.format(min(sample_generator.user_pool), max(sample_generator.user_pool)))
+logging.info('Range of itemId is [{}, {}]'.format(min(sample_generator.item_pool), max(sample_generator.item_pool)))
 validate_data = sample_generator.validate_data
 test_data = sample_generator.test_data
 engine.init_clients(sample_generator)
@@ -145,7 +143,7 @@ with open(file_name, 'a') as file:
     file.write(str + '\n')
 
 train_log = pd.concat(train_log, ignore_index=True)
-file_name = Path('sh_result') / config['dataset'] / f"{current_time}.log"
+file_name = Path('sh_result') / config['dataset'] / f"{current_time}.csv"
 file_name.parent.mkdir(parents=True, exist_ok=True)
 train_log.to_csv(file_name, index=False)
 
