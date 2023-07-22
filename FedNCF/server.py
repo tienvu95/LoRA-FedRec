@@ -18,7 +18,7 @@ from stats import TimeStats
 
 class SimpleAvgAggregator:
     def __init__(self, sample_params) -> None:
-       self.aggregated_params = [np.zeros_like(p) for p in sample_params]
+       self.aggregated_params = [torch.zeros_like(p) for p in sample_params]
        self.count = 0
         
     def collect(self, params, weight=1):
@@ -93,7 +93,7 @@ class SimpleServer:
         sorted_client_set = self.sorted_client_set
         # print(sorted_client_set[0].cid, sorted_client_set[1].cid, sorted_client_set[-1].cid)
         client_weights = [c._private_params['weights'] for c in sorted_client_set]
-        client_weights = [torch.tensor(np.concatenate(w, axis=0)).to(cfg.TRAIN.device) for w in zip(*client_weights)]
+        client_weights = [torch.cat(w, dim=0).to(cfg.TRAIN.device) for w in zip(*client_weights)]
         client_weights = {k: v for k,v in zip(sorted_client_set[0]._private_params['keys'], client_weights)}
         eval_model = copy.deepcopy(self.model)
         eval_model._set_state_from_splited_params([sorted_client_set[0]._private_params, self.server_params])

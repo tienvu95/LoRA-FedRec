@@ -108,10 +108,10 @@ class FedNCFModel(NCF):
         private_params = {'weights': [], "keys": []}
         for key, val in self.state_dict().items():
             if 'user' in key:
-                private_params['weights'].append(val.cpu().clone().numpy())
+                private_params['weights'].append(val.detach().clone())
                 private_params['keys'].append(key)
             else:
-                sharable_params['weights'].append(val.cpu().clone().numpy())
+                sharable_params['weights'].append(val.detach().clone())
                 sharable_params['keys'].append(key)
         return private_params, sharable_params
 
@@ -122,7 +122,7 @@ class FedNCFModel(NCF):
         params_dict = list(zip(sharable_params['keys'], sharable_params['weights']))
         # if private_params is not None:
         params_dict += list(zip(private_params['keys'], private_params['weights']))
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+        state_dict = OrderedDict({k: v for k, v in params_dict})
         self.load_state_dict(state_dict, strict=True)
     
     def _reinit_private_params(self):
