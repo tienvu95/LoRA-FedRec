@@ -32,6 +32,7 @@ class NCFClient(Client):
         self._cid = cid
         self._model = model
         self._private_params = self._model._get_splited_params()[0]
+        self.loss_fn = torch.nn.BCEWithLogitsLoss()
 
     @property
     def cid(self):
@@ -55,14 +56,13 @@ class NCFClient(Client):
         self, train_loader: DataLoader,  parameters: List[np.ndarray], config: Dict[str, str], device, timestats
     ) -> Tuple[List[np.ndarray], int, Dict]:
         # Set model parameters, train model, return updated model parameters
-        
-        timestats.mark_start("set_parameters")
-        self.set_parameters(parameters)
-        timestats.mark_end("set_parameters")
-        optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
-        loss_fn = torch.nn.BCEWithLogitsLoss()
+        with torch.no_grad():
+            timestats.mark_start("set_parameters")
+            self.set_parameters(parameters)
+            timestats.mark_end("set_parameters")
+            optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
         timestats.mark_start("fit")
-        metrics = self._fit(train_loader, optimizer, loss_fn, num_epochs=config.FED.local_epochs, device=device)
+        metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=config.FED.local_epochs, device=device)
         timestats.mark_end("fit")
 
         timestats.mark_start("get_parameters")
@@ -80,9 +80,8 @@ class NCFClient(Client):
 
     def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device):
         self._model.train() # Enable dropout (if have).
-        pbar = tqdm(range(num_epochs), leave=False)
         loss_hist = []
-        for e in pbar:
+        for e in range(num_epochs):
             total_loss = 0
             count_example = 0
             for user, item, label in train_loader:

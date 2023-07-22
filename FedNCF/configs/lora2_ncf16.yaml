@@ -1,11 +1,11 @@
 MODEL:
   factor_num: 16
   num_layers: 3
-  dropout: 3
-  user_lora: True
+  dropout: 0.
+  use_lora: True
   lora_r: 2
   lora_alpha: 2
 
 
 EXP:
-  output_dir: exp/lora4_ncf16
+  output_dir: exp/lora2_ncf16

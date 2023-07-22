@@ -33,7 +33,7 @@ _C.MODEL.lora_r = None
 _C.MODEL.lora_alpha = None
 
 _C.TRAIN = CN()
-_C.TRAIN.lr = 1e-3
+_C.TRAIN.lr = 5e-3 # 1e-3
 _C.TRAIN.weight_decay = None
 _C.TRAIN.lr_scheduler = None
 _C.TRAIN.device = 'cuda' if torch.cuda.is_available() else 'cpu'

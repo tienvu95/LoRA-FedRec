@@ -1,8 +1,8 @@
 MODEL:
   factor_num: 16
   num_layers: 3
-  dropout: 3
-  user_lora: True
+  dropout: 0.
+  use_lora: True
   lora_r: 4
   lora_alpha: 4
 

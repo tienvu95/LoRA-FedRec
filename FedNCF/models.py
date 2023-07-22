@@ -8,7 +8,7 @@ import lora
 
 class NCF(nn.Module):
     def __init__(self, user_num, item_num, factor_num, num_layers,
-                    dropout, GMF_model=None, MLP_model=None, ItemEmbedding=nn.Embedding):
+                    dropout, ItemEmbedding=nn.Embedding):
         super(NCF, self).__init__()
         """
         user_num: number of users;
@@ -21,9 +21,6 @@ class NCF(nn.Module):
         MLP_model: pre-trained MLP weights.
         """		
         self.dropout = dropout
-        self.model = 'NCF'
-        self.GMF_model = GMF_model
-        self.MLP_model = MLP_model
 
         self.embed_user_GMF = nn.Embedding(user_num, factor_num)
         self.embed_item_GMF = ItemEmbedding(item_num, factor_num)
@@ -40,10 +37,8 @@ class NCF(nn.Module):
             MLP_modules.append(nn.ReLU())
         self.MLP_layers = nn.Sequential(*MLP_modules)
 
-        if self.model in ['MLP', 'GMF']:
-            predict_size = factor_num 
-        else:
-            predict_size = factor_num * 2
+        predict_size = factor_num * 2
+        # predict_size = factor_num
         self.predict_layer = nn.Linear(predict_size, 1)
 
         self._init_weight_()
@@ -77,18 +72,10 @@ class NCF(nn.Module):
         return self.MLP_layers(interaction)
 
     def forward(self, user, item):
-        # if not self.model == 'MLP':
         output_GMF = self._gmf_forward(user, item)
-        # if not self.model == 'GMF':
         output_MLP = self._mlp_forward(user, item)
-
-        if self.model == 'GMF':
-            concat = output_GMF
-        elif self.model == 'MLP':
-            concat = output_MLP
-        else:
-            concat = torch.cat((output_GMF, output_MLP), -1)
-
+        concat = torch.cat((output_GMF, output_MLP), -1)
+        # concat = output_GMF
         prediction = self.predict_layer(concat)
         return prediction.view(-1)
 
@@ -108,11 +95,12 @@ class LoraNCF(NCF):
 
 
 class FedNCFModel(NCF):
-    def __init__(self, item_num, factor_num, num_layers, dropout, GMF_model=None, MLP_model=None):
-        super().__init__(1, item_num, factor_num, num_layers, dropout, GMF_model, MLP_model)
+    def __init__(self, item_num, factor_num, num_layers, dropout, user_num=1):
+        super().__init__(user_num, item_num, factor_num, num_layers, dropout)
 
-    def forward(self, user, item):
-        user = torch.zeros_like(user)
+    def forward(self, user, item, mask_zero_user_index=True):
+        if mask_zero_user_index:
+            user = torch.zeros_like(user)
         return super().forward(user, item)
     
     def _get_splited_params(self):
@@ -145,8 +133,9 @@ class FedLoraNCF(LoraNCF):
     def __init__(self, item_num, factor_num, num_layers, dropout, lora_rank, lora_alpha):
         super().__init__(1, item_num, factor_num, num_layers, dropout, lora_rank, lora_alpha)
     
-    def forward(self, user, item):
-        user = torch.zeros_like(user)
+    def forward(self, user, item, mask_zero_user_index=True):
+        if mask_zero_user_index:
+            user = torch.zeros_like(user)
         return super().forward(user, item)
     
     @torch.no_grad()

@@ -34,6 +34,7 @@ class MovieLen1MDataset(data.Dataset):
 			self.sample_negatives()
 		else:
 			self.data = self._load_files()
+			self.num_negatives = 99
 
 		
 			

@@ -16,6 +16,18 @@ from data import FedMovieLen1MDataset
 import evaluate
 from stats import TimeStats
 
+class SimpleAvgAggregator:
+    def __init__(self, sample_params) -> None:
+       self.aggregated_params = [np.zeros_like(p) for p in sample_params]
+       self.count = 0
+        
+    def collect(self, params, weight=1):
+       self.aggregated_params = [(p0 + p1*weight) for p0, p1 in zip(self.aggregated_params, params)]
+       self.count += weight
+    
+    def finallize(self):
+        return [p / self.count for p in self.aggregated_params]
+
 class SimpleServer:
     def __init__(self, clients: List[Client], cfg, model: FedNCFModel, train_dataset: FedMovieLen1MDataset):
         self.client_set = clients
@@ -26,6 +38,8 @@ class SimpleServer:
         self._circulated_client_count = 0
         self._timestats = TimeStats()
         random.shuffle(self.client_set)
+        self.sorted_client_set = sorted(self.client_set, key=lambda t: t.cid)
+
 
     def sample_clients(
         self,
@@ -51,32 +65,42 @@ class SimpleServer:
 
     def train_round(self):
         participants: List[Client] = self.sample_clients()
-        aggregated_weights = [np.zeros_like(p) for p in self.server_params['weights']]
         pbar = tqdm.tqdm(participants, desc='Training')
+        total_loss = 0
+        aggregator = SimpleAvgAggregator(self.server_params['weights'])
         for client in pbar:
+            # Prepare client dataset
             self.train_dataset.set_client(client.cid)
             train_loader = DataLoader(self.train_dataset, **self.cfg.DATALOADER)
-            client_params, data_size, metrics = client.fit(train_loader, self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
 
-            aggregated_weights = [(p0 + p1) for p0, p1 in zip(aggregated_weights, client_params['weights'])]
-            log_dict = {"loss": np.mean(metrics['loss'])}
+            # Fit client model
+            client_params, data_size, metrics = client.fit(train_loader, self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
+            
+            aggregator.collect(client_params['weights'], weight=data_size)
+            client_loss = np.mean(metrics['loss'])
+            log_dict = {"client_loss": client_loss}
+            total_loss += client_loss
+
             pbar.set_postfix(log_dict)
-        aggregated_weights = [p / len(participants) for p in aggregated_weights]
-        self.server_params['weights'] = aggregated_weights
+        self.server_params['weights'] = aggregator.finallize()
+        return {"train_loss": total_loss / len(participants)}
 
     
     @torch.no_grad()
     def evaluate(self, test_loader):
         self._timestats.mark_start("evaluate")
-        client_weights = [c._private_params['weights'] for c in self.client_set]
-        client_weights = list(zip(*client_weights))
-        client_weights = [torch.tensor(np.concatenate(w, axis=0)).to(cfg.TRAIN.device) for w in client_weights]
-        client_weights = {k: v for k,v in zip(self.client_set[0]._private_params['keys'], client_weights)}
+        # sorted_client_set = sorted(self.client_set, key=lambda t: t.cid)
+        sorted_client_set = self.sorted_client_set
+        # print(sorted_client_set[0].cid, sorted_client_set[1].cid, sorted_client_set[-1].cid)
+        client_weights = [c._private_params['weights'] for c in sorted_client_set]
+        client_weights = [torch.tensor(np.concatenate(w, axis=0)).to(cfg.TRAIN.device) for w in zip(*client_weights)]
+        client_weights = {k: v for k,v in zip(sorted_client_set[0]._private_params['keys'], client_weights)}
         eval_model = copy.deepcopy(self.model)
-        eval_model._set_state_from_splited_params([self.client_set[0]._private_params, self.server_params])
+        eval_model._set_state_from_splited_params([sorted_client_set[0]._private_params, self.server_params])
         eval_model.embed_user_GMF = torch.nn.Embedding.from_pretrained(client_weights['embed_user_GMF.weight'])
         eval_model.embed_user_MLP = torch.nn.Embedding.from_pretrained(client_weights['embed_user_MLP.weight'])
         # evaluate the model
+        # eval_model = self.model
         eval_model.eval()
         HR, NDCG = evaluate.metrics(eval_model, test_loader, cfg.EVAL.topk, device=self.cfg.TRAIN.device)
         self._timestats.mark_end("evaluate")
@@ -85,20 +109,6 @@ class SimpleServer:
 def run_server(
     cfg,
 ) -> pd.DataFrame:
-    """
-    defines server side ncf model and initiates the training process
-    saves the trained model at indicated path
-    evaluates the trained model and prints results
-
-    :param dataset: dataset class to load train/test data
-    :param num_clients: number of clients to sample during each global training epoch
-    :param epochs: number of global training epochs
-    :param path: path where pretrained model is stored
-    :param save: boolean parameter which indicates if trained model should be stored in `path`
-    :param local_epochs: number local training epochs
-    :param learning_rate: learning rate for client models for local training
-    :return: trained server model
-    """
 
     ############################## PREPARE DATASET ##########################
     train_dataset = FedMovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
@@ -122,6 +132,7 @@ def run_server(
             factor_num=cfg.MODEL.factor_num,
             num_layers=cfg.MODEL.num_layers,
             dropout=cfg.MODEL.dropout,
+            # user_num=train_dataset.num_users,
         )
     # summary(server_model, *[torch.LongTensor((1,1)), torch.LongTensor((1,1)), None], layer_modules=(lora.Embedding, torch.nn.Parameter))
     model.to(cfg.TRAIN.device)
@@ -133,7 +144,7 @@ def run_server(
     for epoch in range(cfg.FED.aggregation_epochs):
         log_dict = {"epoch": epoch}
         logging.info(f"Aggregation Epoch: {epoch}")
-        server.train_round()
+        log_dict.update(server.train_round())
         logging.info("Evaluate model")
         test_metrics = server.evaluate(test_loader)
         log_dict.update(test_metrics)

@@ -22,7 +22,7 @@ def metrics(model, test_loader, top_k, device='cpu'):
 		user = user.to(device)
 		item = item.to(device)
 
-		predictions = model(user, item)
+		predictions = model(user, item, mask_zero_user_index=False)
 		_, indices = torch.topk(predictions, top_k)
 		recommends = torch.take(
 				item, indices).cpu().numpy().tolist()
