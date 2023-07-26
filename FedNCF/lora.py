@@ -55,15 +55,17 @@ class Embedding(nn.Embedding, LoRALayer):
         nn.Embedding.reset_parameters(self)
         self.reset_lora_parameters()
     
-    def reset_lora_parameters(self, to_zero=False):
+    def reset_lora_parameters(self, to_zero=False, keep_B=False):
         if hasattr(self, 'lora_A'):
             if to_zero:
                 nn.init.zeros_(self.lora_A)
-                nn.init.zeros_(self.lora_B)
+                if not keep_B:
+                    nn.init.zeros_(self.lora_B)
             else:
                 # initialize A the same way as the default for nn.Linear and B to zero
                 nn.init.zeros_(self.lora_A)
-                nn.init.normal_(self.lora_B)
+                if not keep_B:
+                    nn.init.normal_(self.lora_B)
             self.merged = False
     
     def merge_lora_weights(self):

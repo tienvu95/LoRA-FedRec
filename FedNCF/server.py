@@ -15,6 +15,8 @@ from models import FedNCFModel, FedLoraNCF
 from data import FedMovieLen1MDataset
 import evaluate
 from stats import TimeStats
+import torch.nn.functional as F
+import math
 
 class SimpleAvgAggregator:
     def __init__(self, sample_params) -> None:
@@ -67,6 +69,22 @@ class SimpleServer:
         participants: List[Client] = self.sample_clients()
         pbar = tqdm.tqdm(participants, desc='Training')
         total_loss = 0
+
+        if self.cfg.MODEL.use_lora and self.model.freeze_B:
+            with torch.no_grad():
+                name2id = {n: i for i, n in enumerate(participants[0]._private_params['keys'])}
+                gmf_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_GMF.weight']] for c in participants], dim=0)
+                mlp_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_MLP.weight']] for c in participants], dim=0)
+
+                candidateB_gmf = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=gmf_participants_embedding.device)*0.1) @ gmf_participants_embedding
+                candidateB_mlp = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=mlp_participants_embedding.device)*0.1) @ mlp_participants_embedding
+                self.model.embed_item_GMF.lora_B.data = F.normalize(candidateB_gmf, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / gmf_participants_embedding.shape[1])
+                self.model.embed_item_MLP.lora_B.data = F.normalize(candidateB_mlp, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / mlp_participants_embedding.shape[1])
+
+                # self.model._reinit_B()
+                _, self.server_params = self.model._get_splited_params(keep_B=True)
+        # print(self.embed_item_GMF.lora_B)
+
         aggregator = SimpleAvgAggregator(self.server_params['weights'])
         for client in pbar:
             # Prepare client dataset
@@ -120,17 +138,20 @@ def run_server(
         logging.info("use lora model")
         model = FedLoraNCF(
                 train_dataset.num_items,
-                factor_num=cfg.MODEL.factor_num,
-                num_layers=cfg.MODEL.num_layers,
+                gmf_emb_size=cfg.MODEL.gmf_emb_size,
+                mlp_emb_size=cfg.MODEL.mlp_emb_size,
+                mlp_layer_dims=cfg.MODEL.mlp_layer_dims,
                 dropout=cfg.MODEL.dropout,
                 lora_rank=cfg.MODEL.lora_r,
                 lora_alpha=cfg.MODEL.lora_alpha,
+                freeze_B=cfg.MODEL.freeze_B,
             )
     else:
         model = FedNCFModel(
             train_dataset.num_items,
-            factor_num=cfg.MODEL.factor_num,
-            num_layers=cfg.MODEL.num_layers,
+            gmf_emb_size=cfg.MODEL.gmf_emb_size,
+            mlp_emb_size=cfg.MODEL.mlp_emb_size,
+            mlp_layer_dims=cfg.MODEL.mlp_layer_dims,
             dropout=cfg.MODEL.dropout,
             # user_num=train_dataset.num_users,
         )

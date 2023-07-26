@@ -6,7 +6,7 @@ MODEL:
   use_lora: True
   lora_r: 2
   lora_alpha: 2
-
+  freeze_B: True
 
 EXP:
-  output_dir: exp/lora2_ncf16
+  output_dir: exp/lora2_ncf16_freezeB

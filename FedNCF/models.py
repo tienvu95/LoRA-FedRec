@@ -7,8 +7,8 @@ import lora
 
 
 class NCF(nn.Module):
-    def __init__(self, user_num, item_num, factor_num, num_layers,
-                    dropout, ItemEmbedding=nn.Embedding):
+    def __init__(self, user_num, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16],
+                    dropout=0., ItemEmbedding=nn.Embedding):
         super(NCF, self).__init__()
         """
         user_num: number of users;
@@ -22,24 +22,26 @@ class NCF(nn.Module):
         """		
         self.dropout = dropout
 
-        self.embed_user_GMF = nn.Embedding(user_num, factor_num)
-        self.embed_item_GMF = ItemEmbedding(item_num, factor_num)
+        self.embed_user_GMF = nn.Embedding(user_num, gmf_emb_size)
+        self.embed_item_GMF = ItemEmbedding(item_num, gmf_emb_size)
         self.embed_user_MLP = nn.Embedding(
-                user_num, factor_num * (2 ** (num_layers - 1)))
+                user_num, mlp_emb_size)
         self.embed_item_MLP = ItemEmbedding(
-                item_num, factor_num * (2 ** (num_layers - 1)))
+                item_num, mlp_emb_size)
 
         MLP_modules = []
-        for i in range(num_layers):
-            input_size = factor_num * (2 ** (num_layers - i))
+        for i in range(len(mlp_layer_dims) - 1):
+            # input_size = factor_num * (2 ** (num_layers - i))
+            input_size = mlp_layer_dims[i]
+            output_size = mlp_layer_dims[i+1]
             MLP_modules.append(nn.Dropout(p=self.dropout))
-            MLP_modules.append(nn.Linear(input_size, input_size//2))
+            MLP_modules.append(nn.Linear(input_size, output_size))
             MLP_modules.append(nn.ReLU())
         self.MLP_layers = nn.Sequential(*MLP_modules)
 
-        predict_size = factor_num * 2
+        predict_size = gmf_emb_size + mlp_layer_dims[-1]
         # predict_size = factor_num
-        self.predict_layer = nn.Linear(predict_size, 1)
+        self.predict_layer = nn.Linear(predict_size, 1) 
 
         self._init_weight_()
 
@@ -80,23 +82,25 @@ class NCF(nn.Module):
         return prediction.view(-1)
 
 class LoraNCF(NCF):
-    def __init__(self, user_num, item_num, factor_num, num_layers, dropout, lora_rank, lora_alpha):
+    def __init__(self, user_num, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False):
         ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
-        super().__init__(user_num, item_num, factor_num, num_layers, dropout, ItemEmbedding=ItemEmbLayer)
+        super().__init__(user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout, ItemEmbedding=ItemEmbLayer)
+        self.freeze_B = freeze_B
     
     def _merge_all_lora_weights(self):
         self.embed_item_GMF.merge_lora_weights()
         self.embed_item_MLP.merge_lora_weights()
     
-    def _reset_all_lora_weights(self, to_zero=False):
-        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero)
-        self.embed_item_MLP.reset_lora_parameters(to_zero=to_zero)
+    def _reset_all_lora_weights(self, to_zero=False, keep_B=False):
+        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
+        self.embed_item_MLP.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
+            
 
 
 
 class FedNCFModel(NCF):
-    def __init__(self, item_num, factor_num, num_layers, dropout, user_num=1):
-        super().__init__(user_num, item_num, factor_num, num_layers, dropout)
+    def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., user_num=1):
+        super().__init__(user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout)
 
     def forward(self, user, item, mask_zero_user_index=True):
         if mask_zero_user_index:
@@ -130,8 +134,11 @@ class FedNCFModel(NCF):
         nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
 
 class FedLoraNCF(LoraNCF):
-    def __init__(self, item_num, factor_num, num_layers, dropout, lora_rank, lora_alpha):
-        super().__init__(1, item_num, factor_num, num_layers, dropout, lora_rank, lora_alpha)
+    def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False):
+        super().__init__(1, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout, lora_rank, lora_alpha, freeze_B)
+        if self.freeze_B:
+            self.embed_item_GMF.lora_B.requires_grad = False
+            self.embed_item_MLP.lora_B.requires_grad = False
     
     def forward(self, user, item, mask_zero_user_index=True):
         if mask_zero_user_index:
@@ -139,17 +146,17 @@ class FedLoraNCF(LoraNCF):
         return super().forward(user, item)
     
     @torch.no_grad()
-    def _get_splited_params(self):
+    def _get_splited_params(self, keep_B=False):
         self._merge_all_lora_weights()
-        self._reset_all_lora_weights(to_zero=True)
+        self._reset_all_lora_weights(to_zero=True, keep_B=keep_B)
         sharable_params = {'weights': [], "keys": []}
         private_params = {'weights': [], "keys": []}
         for key, val in self.state_dict().items():
             if 'user' in key:
-                private_params['weights'].append(val.cpu().clone().numpy())
+                private_params['weights'].append(val.detach().clone())
                 private_params['keys'].append(key)
             else:
-                sharable_params['weights'].append(val.cpu().clone().numpy())
+                sharable_params['weights'].append(val.detach().clone())
                 sharable_params['keys'].append(key)
         return private_params, sharable_params
 
@@ -160,10 +167,15 @@ class FedLoraNCF(LoraNCF):
         params_dict = list(zip(sharable_params['keys'], sharable_params['weights']))
         # if private_params is not None:
         params_dict += list(zip(private_params['keys'], private_params['weights']))
-        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+        state_dict = OrderedDict({k: v for k, v in params_dict})
         self.load_state_dict(state_dict, strict=True)
-        self._reset_all_lora_weights()
+        self._reset_all_lora_weights(keep_B=self.freeze_B)
     
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
         nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
+    
+    def _reinit_B(self):
+        print("Reinit B")
+        nn.init.normal_(self.embed_item_GMF.lora_B)
+        nn.init.normal_(self.embed_item_MLP.lora_B)

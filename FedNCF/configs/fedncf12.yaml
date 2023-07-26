@@ -1,0 +1,8 @@
+MODEL:
+  gmf_emb_size: 12
+  mlp_emb_size: 12
+  mlp_layer_dims: [24, 48, 24, 12, 6]
+  dropout: 0.
+
+EXP:
+  output_dir: exp/fedncf12

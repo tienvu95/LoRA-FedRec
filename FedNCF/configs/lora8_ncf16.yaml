@@ -1,6 +1,7 @@
 MODEL:
-  factor_num: 16
-  num_layers: 3
+  gmf_emb_size: 16
+  mlp_emb_size: 64
+  mlp_layer_dims: [128, 64, 32, 16]
   dropout: 0.
   use_lora: True
   lora_r: 8

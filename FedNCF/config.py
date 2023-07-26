@@ -25,15 +25,17 @@ _C.DATALOADER.num_workers = 0
 
 _C.MODEL = CN()
 _C.MODEL.name = 'ncf'
-_C.MODEL.factor_num = 16
-_C.MODEL.num_layers = 3
+_C.MODEL.gmf_emb_size = 12
+_C.MODEL.mlp_emb_size = 12
+_C.MODEL.mlp_layer_dims = [48, 24, 12, 6]
 _C.MODEL.dropout = 0.0
 _C.MODEL.use_lora = False
 _C.MODEL.lora_r = None
 _C.MODEL.lora_alpha = None
+_C.MODEL.freeze_B = False
 
 _C.TRAIN = CN()
-_C.TRAIN.lr = 5e-3 # 1e-3
+_C.TRAIN.lr = 1e-3
 _C.TRAIN.weight_decay = None
 _C.TRAIN.lr_scheduler = None
 _C.TRAIN.device = 'cuda' if torch.cuda.is_available() else 'cpu'

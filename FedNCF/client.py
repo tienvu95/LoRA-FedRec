@@ -93,12 +93,12 @@ class NCFClient(Client):
                 prediction = self._model(user, item)
                 loss = loss_fn(prediction, label)
                 loss.backward()
-                # tmp = self._model.embed_user_GMF.weight.detach().clone()
+                # tmp = self._model.embed_item_GMF.lora_A.detach().clone()
                 # print(self._model.embed_user_GMF.weight.grad.data)
                 # tmp = self._model.embed_item_GMF.lora_A.grad.data
                 optimizer.step()
                 # print(torch.linalg.norm(self._model.embed_user_GMF.weight.detach().cpu() - torch.tensor(self._private_params['weights'][0])))
-                # print("Lora A grad", torch.norm(tmp))
+                # print("Lora B grad", torch.norm(tmp))
 
                 count_example += label.shape[0]
                 total_loss += loss.item()* label.shape[0]
