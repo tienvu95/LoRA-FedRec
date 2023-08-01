@@ -39,6 +39,7 @@ class SimpleServer:
         self.train_dataset = train_dataset
         self._circulated_client_count = 0
         self._timestats = TimeStats()
+        random.seed(cfg.EXP.seed)
         random.shuffle(self.client_set)
         self.sorted_client_set = sorted(self.client_set, key=lambda t: t.cid)
 
@@ -65,26 +66,29 @@ class SimpleServer:
 
         return sample
 
+    @torch.no_grad()
+    def _prepare_global_params(self):
+        if self.cfg.MODEL.use_lora and self.model.freeze_B:
+            # name2id = {n: i for i, n in enumerate(participants[0]._private_params['keys'])}
+            # gmf_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_GMF.weight']] for c in participants], dim=0)
+            # mlp_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_MLP.weight']] for c in participants], dim=0)
+
+            # candidateB_gmf = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=gmf_participants_embedding.device)*0.1) @ gmf_participants_embedding
+            # candidateB_mlp = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=mlp_participants_embedding.device)*0.1) @ mlp_participants_embedding
+            # self.model.embed_item_GMF.lora_B.data = F.normalize(candidateB_gmf, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / gmf_participants_embedding.shape[1])
+            # self.model.embed_item_MLP.lora_B.data = F.normalize(candidateB_mlp, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / mlp_participants_embedding.shape[1])
+
+            self.model._reinit_B()
+            _, self.server_params = self.model._get_splited_params(keep_B=True, merge_weights=False)
+
     def train_round(self):
         participants: List[Client] = self.sample_clients()
-        pbar = tqdm.tqdm(participants, desc='Training')
         total_loss = 0
 
-        if self.cfg.MODEL.use_lora and self.model.freeze_B:
-            with torch.no_grad():
-                name2id = {n: i for i, n in enumerate(participants[0]._private_params['keys'])}
-                gmf_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_GMF.weight']] for c in participants], dim=0)
-                mlp_participants_embedding = torch.cat([c._private_params['weights'][name2id['embed_user_MLP.weight']] for c in participants], dim=0)
-
-                candidateB_gmf = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=gmf_participants_embedding.device)*0.1) @ gmf_participants_embedding
-                candidateB_mlp = (torch.randn(self.cfg.MODEL.lora_r, len(participants), device=mlp_participants_embedding.device)*0.1) @ mlp_participants_embedding
-                self.model.embed_item_GMF.lora_B.data = F.normalize(candidateB_gmf, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / gmf_participants_embedding.shape[1])
-                self.model.embed_item_MLP.lora_B.data = F.normalize(candidateB_mlp, dim=0) * math.sqrt(self.cfg.MODEL.lora_r / mlp_participants_embedding.shape[1])
-
-                # self.model._reinit_B()
-                _, self.server_params = self.model._get_splited_params(keep_B=True)
+        self._prepare_global_params()
         # print(self.embed_item_GMF.lora_B)
 
+        pbar = tqdm.tqdm(participants, desc='Training')
         aggregator = SimpleAvgAggregator(self.server_params['weights'])
         for client in pbar:
             # Prepare client dataset
@@ -100,7 +104,10 @@ class SimpleServer:
             total_loss += client_loss
 
             pbar.set_postfix(log_dict)
-        self.server_params['weights'] = aggregator.finallize()
+        updated_weight = aggregator.finallize()
+        self.server_params['weights'] = updated_weight
+
+        self.model._set_state_from_splited_params([self.sorted_client_set[0]._private_params, self.server_params])
         return {"train_loss": total_loss / len(participants)}
 
     

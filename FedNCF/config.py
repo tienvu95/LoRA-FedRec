@@ -43,6 +43,7 @@ _C.TRAIN.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 _C.EXP = CN()
 _C.EXP.save = False
 _C.EXP.output_dir = 'pretrained/standard/'
+_C.EXP.seed = 42
 
 _C.EVAL = CN()
 _C.EVAL.topk = 10

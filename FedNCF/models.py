@@ -146,8 +146,9 @@ class FedLoraNCF(LoraNCF):
         return super().forward(user, item)
     
     @torch.no_grad()
-    def _get_splited_params(self, keep_B=False):
-        self._merge_all_lora_weights()
+    def _get_splited_params(self, keep_B=False, merge_weights=True):
+        if merge_weights:
+            self._merge_all_lora_weights()
         self._reset_all_lora_weights(to_zero=True, keep_B=keep_B)
         sharable_params = {'weights': [], "keys": []}
         private_params = {'weights': [], "keys": []}

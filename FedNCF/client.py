@@ -40,7 +40,7 @@ class NCFClient(Client):
 
     def get_parameters(self, config) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        private_params, sharable_params = self._model._get_splited_params()
+        private_params, sharable_params = self._model._get_splited_params(keep_B=True)
         # print(self._private_params['keys'])
         # print("Update on private params", private_params['weights'][0].shape, np.linalg.norm(private_params['weights'][1] - self._private_params['weights'][1]))
         # print("Update on private params", private_params['weights'][1].shape, np.linalg.norm(private_params['weights'][0] - self._private_params['weights'][0]))
@@ -53,12 +53,12 @@ class NCFClient(Client):
         self._model._set_state_from_splited_params([self._private_params, global_params])
 
     def fit(
-        self, train_loader: DataLoader,  parameters: List[np.ndarray], config: Dict[str, str], device, timestats
+        self, train_loader: DataLoader,  server_params: List[np.ndarray], config: Dict[str, str], device, timestats
     ) -> Tuple[List[np.ndarray], int, Dict]:
         # Set model parameters, train model, return updated model parameters
         with torch.no_grad():
             timestats.mark_start("set_parameters")
-            self.set_parameters(parameters)
+            self.set_parameters(server_params)
             timestats.mark_end("set_parameters")
             optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
         timestats.mark_start("fit")
@@ -68,6 +68,14 @@ class NCFClient(Client):
         timestats.mark_start("get_parameters")
         sharable_params = self.get_parameters(None)
         timestats.mark_end("get_parameters")
+
+        # name2id = {n: i for i, n in enumerate(server_params['keys'])}
+        # id1 = name2id['embed_item_GMF.lora_B']
+        # print(torch.abs(sharable_params['weights'][id1]).sum())
+        # print(torch.abs(sharable_params['weights'][id1] - server_params['weights'][id1]).sum())
+        # id1 = name2id['embed_item_MLP.lora_B']
+        # print(torch.abs(sharable_params['weights'][id1]).sum())
+        # print(torch.abs(sharable_params['weights'][id1] - server_params['weights'][id1]).sum())
 
         return sharable_params, len(train_loader.dataset), metrics
 
@@ -96,6 +104,15 @@ class NCFClient(Client):
                 # tmp = self._model.embed_item_GMF.lora_A.detach().clone()
                 # print(self._model.embed_user_GMF.weight.grad.data)
                 # tmp = self._model.embed_item_GMF.lora_A.grad.data
+                # print("lora_A grad", torch.norm(tmp))
+                # grad_gmf_A = self._model.embed_item_GMF.lora_A.grad.data.detach().clone()
+                # grad_gmf_B = self._model.embed_item_GMF.lora_B.grad
+                # print(grad_gmf_B, self._model.embed_item_MLP.lora_B.grad)
+                # print("gmf", grad_gmf_A.sum().item(), grad_gmf_B.norm().item())
+
+                # self._model.embed_item_GMF.lora_B.grad.data.zero_()
+                # self._model.embed_item_MLP.lora_B.grad.data.zero_()
+
                 optimizer.step()
                 # print(torch.linalg.norm(self._model.embed_user_GMF.weight.detach().cpu() - torch.tensor(self._private_params['weights'][0])))
                 # print("Lora B grad", torch.norm(tmp))
