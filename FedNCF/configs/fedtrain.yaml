@@ -1,0 +1,49 @@
+# @package _global_
+defaults:
+  - _self_
+  - net: fedncf16.yaml
+  - paths: default.yaml
+  - hydra: default.yaml
+
+FED:
+  num_clients: 120
+  aggregation_epochs: 400
+  local_epochs: 2
+
+DATA:
+  root: '../data/Data'
+  name: 'movielens'
+  num_negatives: 4
+  test_num_ng: 99
+
+DATALOADER:
+  batch_size: 256
+  shuffle: True
+  num_workers: 0
+
+MODEL:
+  name: 'ncf'
+  gmf_emb_size: 16
+  mlp_emb_size: 64
+  mlp_layer_dims: [128, 64, 32, 16]
+  dropout: 0.0
+  use_lora: False
+  lora_r: null
+  lora_alpha: null
+  freeze_B: False
+
+TRAIN:
+  lr: 1e-3
+  weight_decay: None
+  lr_scheduler: None
+  device: 'cuda'
+
+EVAL:
+  topk: 42
+
+EXP:
+  seed: 42
+
+
+task_name: fedtrain/debug
+run_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}

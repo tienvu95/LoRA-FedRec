@@ -19,14 +19,22 @@ from tqdm import tqdm
 
 args = config.get_parser().parse_args()
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-cudnn.benchmark = True
-device = torch.device("cuda")
+# os.environ["CUDA_VISIBLE_DEVICES"] = '1,2'
+# cudnn.benchmark = True
+device = "cuda:2"
 
 
 ############################## PREPARE DATASET ##########################
-train_dataset = data_utils.MovieLen1MDataset(config.main_path, train=True, num_negatives=args.num_ng)
-test_dataset = data_utils.MovieLen1MDataset(config.main_path, train=False)
+# train_dataset = data_utils.MovieLen1MDataset(config.main_path, train=True, num_negatives=args.num_ng)
+# test_dataset = data_utils.MovieLen1MDataset(config.main_path, train=False)
+# train_dataset = data_utils.LastFM2kDataset(config.main_path, train=True, num_negatives=args.num_ng)
+# test_dataset = data_utils.LastFM2kDataset(config.main_path, train=False)
+# train_dataset = data_utils.AmazonVideoDataset(config.main_path, train=True, num_negatives=args.num_ng)
+# test_dataset = data_utils.AmazonVideoDataset(config.main_path, train=False)
+train_dataset = data_utils.DoubanMovieDataset(config.main_path, train=True, num_negatives=args.num_ng)
+test_dataset = data_utils.DoubanMovieDataset(config.main_path, train=False)
+# train_dataset = data_utils.PinterestDataset(config.main_path, train=True, num_negatives=args.num_ng)
+# test_dataset = data_utils.PinterestDataset(config.main_path, train=False)
 train_loader = data.DataLoader(train_dataset,
 		batch_size=args.batch_size, shuffle=True, num_workers=4)
 test_loader = data.DataLoader(test_dataset,
@@ -42,9 +50,9 @@ else:
 	GMF_model = None
 	MLP_model = None
 
-print("Num users", train_dataset.num_user)
-print("Num items", train_dataset.num_item)
-model = model.NCF(train_dataset.num_user, train_dataset.num_item, args.factor_num, args.num_layers, 
+print("Num users", train_dataset.num_users)
+print("Num items", train_dataset.num_items)
+model = model.NCF(train_dataset.num_users, train_dataset.num_items, args.factor_num, args.num_layers, 
 						args.dropout, config.model, GMF_model, MLP_model)
 model.to(device)	
 loss_function = nn.BCEWithLogitsLoss()
@@ -84,7 +92,8 @@ for epoch in range(args.epochs):
 		count += 1
 
 	model.eval()
-	HR, NDCG = evaluate.metrics(model, test_loader, args.top_k)
+	with torch.no_grad():
+		HR, NDCG = evaluate.metrics(model, test_loader, args.top_k, device=device)
 
 	elapsed_time = time.time() - start_time
 	print("The time elapse of epoch {:03d}".format(epoch) + " is: " + 

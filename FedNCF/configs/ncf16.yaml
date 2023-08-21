@@ -1,7 +1,0 @@
-MODEL:
-  factor_num: 16
-  num_layers: 3
-  dropout: 0.
-
-EXP:
-  output_dir: exp/ncf16

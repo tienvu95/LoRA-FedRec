@@ -104,3 +104,6 @@ class Embedding(nn.Embedding, LoRALayer):
             return result
         else:
             return result
+
+def init_ortho(tensor, gain=1):
+    torch.nn.init.orthogonal_(tensor)

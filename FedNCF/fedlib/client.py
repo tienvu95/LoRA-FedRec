@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from abc import ABC, abstractmethod
-from models import FedNCFModel
+from .models import FedNCFModel
 
 class Client(ABC):
     @abstractmethod
@@ -40,7 +40,7 @@ class NCFClient(Client):
 
     def get_parameters(self, config) -> List[np.ndarray]:
         # Return model parameters as a list of NumPy ndarrays
-        private_params, sharable_params = self._model._get_splited_params(keep_B=True)
+        private_params, sharable_params = self._model._get_splited_params()
         # print(self._private_params['keys'])
         # print("Update on private params", private_params['weights'][0].shape, np.linalg.norm(private_params['weights'][1] - self._private_params['weights'][1]))
         # print("Update on private params", private_params['weights'][1].shape, np.linalg.norm(private_params['weights'][0] - self._private_params['weights'][0]))
@@ -61,6 +61,8 @@ class NCFClient(Client):
             self.set_parameters(server_params)
             timestats.mark_end("set_parameters")
             optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
+            # optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr)
+
         timestats.mark_start("fit")
         metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=config.FED.local_epochs, device=device)
         timestats.mark_end("fit")
@@ -68,6 +70,13 @@ class NCFClient(Client):
         timestats.mark_start("get_parameters")
         sharable_params = self.get_parameters(None)
         timestats.mark_end("get_parameters")
+
+        if timestats is not None:
+            name2id = {n: i for i, n in enumerate(sharable_params['keys'])}
+            id1 = name2id['embed_item_GMF.weight']
+            id2 = name2id['embed_item_MLP.weight']
+            timestats.count_num_important_component(self._cid, 'embed_item_GMF.weights', sharable_params['weights'][id1] - server_params['weights'][id1])
+            timestats.count_num_important_component(self._cid, 'embed_item_MLP.weights', sharable_params['weights'][id2] - server_params['weights'][id2])
 
         # name2id = {n: i for i, n in enumerate(server_params['keys'])}
         # id1 = name2id['embed_item_GMF.lora_B']

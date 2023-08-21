@@ -1,0 +1,6 @@
+init_params:
+  _target_: fedlib.models.FedNCFModel
+  gmf_emb_size: 16
+  mlp_emb_size: 64
+  mlp_layer_dims: [128, 64, 32, 16]
+  dropout: 0.0

@@ -165,3 +165,6 @@ MF/sh_result
 /Federated-Recommendation-Neural-Collaborative-Filtering
 /federeco
 /FedNCF/exp
+/FedNCF/outputs
+*.bk
+*/dataset

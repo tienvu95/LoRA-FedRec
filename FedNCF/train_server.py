@@ -12,7 +12,7 @@ import copy
 import tqdm
 import logging
 from models import FedNCFModel, FedLoraNCF
-from data import FedMovieLen1MDataset
+import data as data_utils
 import evaluate
 from stats import TimeStats
 import torch.nn.functional as F
@@ -31,7 +31,7 @@ class SimpleAvgAggregator:
         return [p / self.count for p in self.aggregated_params]
 
 class SimpleServer:
-    def __init__(self, clients: List[Client], cfg, model: FedNCFModel, train_dataset: FedMovieLen1MDataset):
+    def __init__(self, clients: List[Client], cfg, model: FedNCFModel, train_dataset: data_utils.FedMovieLen1MDataset):
         self.client_set = clients
         self.model = model
         _, self.server_params = self.model._get_splited_params()
@@ -81,13 +81,13 @@ class SimpleServer:
             self.model._reinit_B()
             _, self.server_params = self.model._get_splited_params(keep_B=True, merge_weights=False)
 
-    def train_round(self):
+    def train_round(self, epoch_idx: int = 0):
         participants: List[Client] = self.sample_clients()
         total_loss = 0
 
         self._prepare_global_params()
         # print(self.embed_item_GMF.lora_B)
-
+        self._timestats.set_aggregation_epoch(epoch_idx)
         pbar = tqdm.tqdm(participants, desc='Training')
         aggregator = SimpleAvgAggregator(self.server_params['weights'])
         for client in pbar:
@@ -104,6 +104,7 @@ class SimpleServer:
             total_loss += client_loss
 
             pbar.set_postfix(log_dict)
+        # print( self._timestats._pca_vars)
         updated_weight = aggregator.finallize()
         self.server_params['weights'] = updated_weight
 
@@ -136,9 +137,33 @@ def run_server(
 ) -> pd.DataFrame:
 
     ############################## PREPARE DATASET ##########################
-    train_dataset = FedMovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
-    test_dataset = FedMovieLen1MDataset(cfg.DATA.root, train=False)
-    test_loader = DataLoader(test_dataset, batch_size=cfg.DATA.test_num_ng+1, shuffle=False, num_workers=0)
+    if cfg.DATA.name == "movielens":
+        train_dataset = data_utils.FedMovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedMovieLen1MDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "pinterest":
+        train_dataset = data_utils.FedPinterestDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedPinterestDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "lastfm":
+        train_dataset = data_utils.FedLastfmDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedLastfmDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "amazon-video":
+        train_dataset = data_utils.FedAmazonVideoDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedAmazonVideoDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "douban":
+        train_dataset = data_utils.FedDoubanMovieDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedDoubanMovieDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "foursq-ny":
+        train_dataset = data_utils.FedFoursquareNYDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedFoursquareNYDataset(cfg.DATA.root, train=False)
+    elif cfg.DATA.name == "book-crossing":
+        train_dataset = data_utils.FedBookCrossingDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
+        test_dataset = data_utils.FedBookCrossingDataset(cfg.DATA.root, train=False)
+    else:
+        raise ValueError
+
+    logging.info("Num users: %d" % train_dataset.num_users)
+    logging.info("Num items: %d" % train_dataset.num_items)
+    test_loader = DataLoader(test_dataset, batch_size=2048, shuffle=False, num_workers=0)
     # define server side model
     logging.info("Init model")
     if cfg.MODEL.use_lora:
@@ -172,7 +197,7 @@ def run_server(
     for epoch in range(cfg.FED.aggregation_epochs):
         log_dict = {"epoch": epoch}
         logging.info(f"Aggregation Epoch: {epoch}")
-        log_dict.update(server.train_round())
+        log_dict.update(server.train_round(epoch_idx=epoch))
         logging.info("Evaluate model")
         test_metrics = server.evaluate(test_loader)
         log_dict.update(test_metrics)
@@ -180,8 +205,9 @@ def run_server(
         server._timestats.reset()
         hist.append(log_dict)
         logging.info(log_dict)
+    pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
     hist_df = pd.DataFrame(hist)
-    return hist_df
+    return hist_df, pca_var_df
 
 def initialize_clients(cfg, model, num_users) -> List[Client]:
     """
@@ -226,5 +252,6 @@ if __name__ == '__main__':
     initLogging(logfilename)
     logging.info(cfg.dump())
 
-    hist_df = run_server(cfg)
+    hist_df, pca_var_df = run_server(cfg)
     hist_df.to_csv(out_dir / "hist.csv", index=False)
+    pca_var_df.to_csv(out_dir / "pca_var.csv", index=False)
