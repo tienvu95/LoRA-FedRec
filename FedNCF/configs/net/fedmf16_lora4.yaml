@@ -1,0 +1,7 @@
+init_params:
+  _target_: fedlib.models.FedLoraMF
+  gmf_emb_size: 16
+  lora_rank: 4
+  lora_alpha: 4
+  freeze_B: True
+name: fedmf_lora4

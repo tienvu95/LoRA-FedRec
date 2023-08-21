@@ -8,7 +8,7 @@ defaults:
 # output directory, generated dynamically on each run
 # ${now:%Y-%m-%d}_${now:%H-%M-%S}
 run:
-  dir: ${paths.log_dir}/${task_name}/${run_name}
+  dir: ${paths.log_dir}/${task_name}/${run_name}/${net.name}
 sweep:
   dir: ${paths.log_dir}/${task_name}/${run_name}
-  subdir: ${detector.classname}
+  subdir: ${net.name}

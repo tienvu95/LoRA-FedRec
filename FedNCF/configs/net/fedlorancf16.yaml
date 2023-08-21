@@ -1,0 +1,10 @@
+init_params:
+  _target_: fedlib.models.FedLoraNCF
+  gmf_emb_size: 16
+  mlp_emb_size: 64
+  mlp_layer_dims: [128, 64, 32, 16]
+  dropout: 0.0
+  lora_rank: 4
+  lora_alpha: 4
+  freeze_B: True
+name: fedncf_lora4

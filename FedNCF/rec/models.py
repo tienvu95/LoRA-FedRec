@@ -5,6 +5,32 @@ import torch.nn as nn
 import torch.nn.functional as F 
 import lora
 
+class MF(nn.Module):
+    def __init__(self, user_num, item_num, gmf_emb_size=16, ItemEmbedding=nn.Embedding):
+        super(MF, self).__init__()
+        """
+        user_num: number of users;
+        item_num: number of items;
+        """		
+
+        self.embed_user_GMF = nn.Embedding(user_num, gmf_emb_size)
+        self.embed_item_GMF = ItemEmbedding(item_num, gmf_emb_size)
+        self._init_weight_()
+
+    def _init_weight_(self):
+        """ We leave the weights initialization here. """
+        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
+        nn.init.normal_(self.embed_item_GMF.weight, std=0.01)
+
+    def _gmf_forward(self, user, item):
+        embed_user_GMF = self.embed_user_GMF(user)
+        embed_item_GMF = self.embed_item_GMF(item)
+        return embed_user_GMF * embed_item_GMF
+
+    def forward(self, user, item, **kwargs):
+        output_GMF = self._gmf_forward(user, item)
+        prediction = output_GMF.sum(dim=-1)
+        return prediction.view(-1)
 
 class NCF(nn.Module):
     def __init__(self, user_num, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16],
@@ -94,3 +120,15 @@ class LoraNCF(NCF):
     def _reset_all_lora_weights(self, to_zero=False, keep_B=False):
         self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
         self.embed_item_MLP.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
+    
+class LoraMF(MF):
+    def __init__(self, user_num, item_num, gmf_emb_size=16, lora_rank=4, lora_alpha=4, freeze_B=False):
+        ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
+        super().__init__(user_num, item_num, gmf_emb_size, ItemEmbedding=ItemEmbLayer)
+        self.freeze_B = freeze_B
+    
+    def _merge_all_lora_weights(self):
+        self.embed_item_GMF.merge_lora_weights()
+    
+    def _reset_all_lora_weights(self, to_zero=False, keep_B=False):
+        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)

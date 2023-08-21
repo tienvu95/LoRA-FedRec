@@ -9,9 +9,9 @@ class FedDataModule(object):
         self.train_dataset, self.test_dataset = get_dataset(self.cfg, sample_negative=False)
         self.num_users = self.train_dataset.num_users
         self.num_items = self.train_dataset.num_items
-        self.sample_negative()
+        self.sample_negatives()
     
-    def sample_negative(self):
+    def sample_negatives(self):
         self.train_rating_data = self.train_dataset._sample_nagatives()
 
     def set_cid(self, cid):

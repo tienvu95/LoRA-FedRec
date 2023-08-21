@@ -167,4 +167,4 @@ MF/sh_result
 /FedNCF/exp
 /FedNCF/outputs
 *.bk
-*/dataset
+dataset/

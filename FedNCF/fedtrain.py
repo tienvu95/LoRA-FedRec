@@ -60,10 +60,10 @@ def run_server(
 
 @hydra.main(config_path=str(Path.cwd() / 'configs'), config_name='fedtrain.yaml', version_base="1.2")
 def main(cfg):
-    print(cfg)
+    logging.info(cfg)
     out_dir = Path(cfg.paths.output_dir)
     hist_df, pca_var_df = run_server(cfg)
-    hist_df.to_csv(cfg.paths.output_dir / "hist.csv", index=False)
+    hist_df.to_csv(out_dir / "hist.csv", index=False)
     pca_var_df.to_csv(out_dir / "pca_var.csv", index=False)
 
 if __name__ == '__main__':

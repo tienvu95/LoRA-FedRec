@@ -61,7 +61,7 @@ class SimpleServer:
 
     @torch.no_grad()
     def _prepare_global_params(self):
-        if self.cfg.MODEL.use_lora and self.model.freeze_B:
+        if 'lora' in self.model.__class__.__name__.lower() and self.model.freeze_B:
             self.model._reinit_B()
             _, self.server_params = self.model._get_splited_params(keep_B=True, merge_weights=False)
 

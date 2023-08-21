@@ -71,12 +71,12 @@ class NCFClient(Client):
         sharable_params = self.get_parameters(None)
         timestats.mark_end("get_parameters")
 
-        if timestats is not None:
-            name2id = {n: i for i, n in enumerate(sharable_params['keys'])}
-            id1 = name2id['embed_item_GMF.weight']
-            id2 = name2id['embed_item_MLP.weight']
-            timestats.count_num_important_component(self._cid, 'embed_item_GMF.weights', sharable_params['weights'][id1] - server_params['weights'][id1])
-            timestats.count_num_important_component(self._cid, 'embed_item_MLP.weights', sharable_params['weights'][id2] - server_params['weights'][id2])
+        # if timestats is not None:
+        #     name2id = {n: i for i, n in enumerate(sharable_params['keys'])}
+        #     id1 = name2id['embed_item_GMF.weight']
+        #     id2 = name2id['embed_item_MLP.weight']
+        #     timestats.count_num_important_component(self._cid, 'embed_item_GMF.weights', sharable_params['weights'][id1] - server_params['weights'][id1])
+        #     timestats.count_num_important_component(self._cid, 'embed_item_MLP.weights', sharable_params['weights'][id2] - server_params['weights'][id2])
 
         # name2id = {n: i for i, n in enumerate(server_params['keys'])}
         # id1 = name2id['embed_item_GMF.lora_B']

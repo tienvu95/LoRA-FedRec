@@ -1,0 +1,4 @@
+init_params:
+  _target_: fedlib.models.FedMF
+  gmf_emb_size: 16
+name: fedmf

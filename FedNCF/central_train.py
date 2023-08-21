@@ -28,6 +28,7 @@ os.environ['EXP_DIR'] = str(Path.cwd())
 
 @hydra.main(config_path=str(Path.cwd() / 'configs'), config_name='fedtrain.yaml', version_base="1.2")
 def main(cfg):
+	print(cfg)
 	############################## PREPARE DATASET ##########################
 	# train_dataset = FedMovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
 	train_dataset = FedMovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives)
@@ -69,14 +70,16 @@ def main(cfg):
 		# print("Sampling neg time", sample_time)
 		
 		client_losses = []
-		for uid in client_set[:cfg.FED.num_clients]:
+		client_sample = client_set[:cfg.FED.num_clients]
+		client_set = client_set[cfg.FED.num_clients:] + client_sample
+
+		for uid in client_sample:
 			optimizer = optim.Adam(model.parameters(), lr=cfg.TRAIN.lr)
 			model.train() # Enable dropout (if have).
 			train_dataset.set_client(uid)
 			train_loader = data.DataLoader(train_dataset,
 				batch_size=cfg.DATALOADER.batch_size, shuffle=True, num_workers=0)
-			client_sample = client_set[:cfg.FED.num_clients]
-			client_set = client_set[cfg.FED.num_clients:] + client_sample
+			
 			# _, sample_time = log_time(lambda : train_loader.dataset.ng_sample())
 			total_loss = 0
 			for batch_idx, (user, item, label) in enumerate(train_loader):

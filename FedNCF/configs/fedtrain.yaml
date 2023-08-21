@@ -39,11 +39,12 @@ TRAIN:
   device: 'cuda'
 
 EVAL:
-  topk: 42
+  topk: 10
 
 EXP:
   seed: 42
 
 
-task_name: fedtrain/debug
-run_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+task_name: fedtrain
+run_name: ${DATA.name}
+# ${now:%Y-%m-%d}_${now:%H-%M-%S}
