@@ -11,4 +11,4 @@ run:
   dir: ${paths.log_dir}/${task_name}/${run_name}/${net.name}
 sweep:
   dir: ${paths.log_dir}/${task_name}/${run_name}
-  subdir: ${net.name}
+  subdir: ${net.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

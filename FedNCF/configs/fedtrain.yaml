@@ -1,6 +1,7 @@
 # @package _global_
 defaults:
   - _self_
+  - data: ml-1m.yaml
   - net: fedncf16.yaml
   - paths: default.yaml
   - hydra: default.yaml
@@ -21,22 +22,12 @@ DATALOADER:
   shuffle: True
   num_workers: 0
 
-MODEL:
-  name: 'ncf'
-  gmf_emb_size: 16
-  mlp_emb_size: 64
-  mlp_layer_dims: [128, 64, 32, 16]
-  dropout: 0.0
-  use_lora: False
-  lora_r: null
-  lora_alpha: null
-  freeze_B: False
-
 TRAIN:
   lr: 1e-3
   weight_decay: None
   lr_scheduler: None
   device: 'cuda'
+  wandb: False
 
 EVAL:
   topk: 10
