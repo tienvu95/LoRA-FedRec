@@ -31,7 +31,7 @@ class NCFClient(Client):
     ) -> None:
         self._cid = cid
         self._model = model
-        self._private_params = self._model._get_splited_params()[0]
+        self._private_params = self._model._get_splited_params(compress=False)[0]
         self.loss_fn = torch.nn.BCEWithLogitsLoss()
 
     @property

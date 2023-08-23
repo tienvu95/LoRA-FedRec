@@ -26,15 +26,26 @@ class MovieLen1MDataset(data.Dataset):
         self.root = Path(root)
         self._train = train
         self.num_negatives = num_negatives
+        self.test_data = self._load_files(train=False)
+        self.test_inter_dict = {}
+        for sample in self.test_data:
+            u = sample[0]
+            i = sample[1]
+            if u in self.test_inter_dict:
+                self.test_inter_dict[u].update({i})
+            else:
+                self.test_inter_dict[u] = {i}
+        
+
         if train:
-            self.rating_df = self._load_files()
+            self.rating_df = self._load_files(train=True)
             self.num_users = self.rating_df['user'].max() + 1
             self.num_items = self.rating_df['item'].max() + 1
             self.neg_item_dict, self.user_interaction_count = self._get_neg_items(self.rating_df)
             if sample_negative:
                 self.sample_negatives()
         else:
-            self.data = self._load_files()
+            self.data = self.test_data
             self.num_negatives = 99
 
         
@@ -51,10 +62,12 @@ class MovieLen1MDataset(data.Dataset):
 
         interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
         neg_item_dict = dict(zip(interactions['user'].values, interactions['neg_items'].values))
+        for u, test_items in self.test_inter_dict.items():
+            neg_item_dict[u] = list(set(neg_item_dict[u]).difference(test_items))
         return neg_item_dict, user_interaction_count
     
-    def _load_files(self):
-        if self._train: 
+    def _load_files(self, train):
+        if train: 
             train_df = pd.read_csv(
                 self.root / self.file_names['train_ratings'], 
                 sep='\t', header=None, names=['user', 'item', 'rating'], 
@@ -158,6 +171,7 @@ class FedPinterestDataset(PinterestDataset):
 class LastFM2kDataset(MovieLen1MDataset):
     def __init__(self, root, train=False, num_negatives=4, sample_neg=True) -> None:
         # super().__init__(root, train, num_negatives)
+        self.data_root = root
         self.num_negatives = num_negatives
         self._train = train
         ds, df = self._get_df()
@@ -218,6 +232,8 @@ class LastFM2kDataset(MovieLen1MDataset):
         self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
         self.cfg["user_inter_num_interval"] = '[5,inf]'
         self.cfg["item_inter_num_interval"] = '[2,inf]'
+        print(self.cfg['data_path'])
+        self.cfg['data_path']=self.data_root
         ds = dataset.Dataset(self.cfg)
         df = ds.inter_feat.copy()
         df.rename(columns={'user_id': 'user', 'artist_id': 'item'}, inplace=True)
@@ -235,8 +251,8 @@ class FedLastfmDataset(LastFM2kDataset):
         return len(self.data)
 
 class AmazonVideoDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4) -> None:
-        super().__init__(root, train, num_negatives)
+    def __init__(self, root, train=False, num_negatives=4, sample_negative=True) -> None:
+        super().__init__(root, train, num_negatives, sample_neg=sample_negative)
     
     def _get_df(self):
         self.cfg = Config(model="BPR", dataset='Amazon_Instant_Video', 
@@ -245,6 +261,7 @@ class AmazonVideoDataset(LastFM2kDataset):
         self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
         self.cfg["user_inter_num_interval"] = '[5,inf]'
         self.cfg["item_inter_num_interval"] = '[1,inf]'
+        self.cfg['data_path']= self.data_root + '/Amazon_Instant_Video'
         ds = dataset.Dataset(self.cfg)
         df = ds.inter_feat.copy()
         df.rename(columns={'user_id': 'user', 'item_id': 'item'}, inplace=True)
@@ -317,8 +334,8 @@ class FedDoubanMovieDataset(DoubanMovieDataset):
         return len(self.data)
 
 class FoursquareNYDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4) -> None:
-        super().__init__(root, train, num_negatives)
+    def __init__(self, root, train=False, num_negatives=4, sample_negative=True) -> None:
+        super().__init__(root, train, num_negatives, sample_neg=sample_negative)
     
     def _get_df(self):
         self.cfg = Config(model="BPR", dataset='foursquare_NYC', 
@@ -326,6 +343,7 @@ class FoursquareNYDataset(LastFM2kDataset):
            'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'venue_id']},'seq_separator': ' '} )
         self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
         self.cfg["user_inter_num_interval"] = '[5,inf]'
+        self.cfg['data_path']= self.data_root + '/foursquare_NYC'
         # self.cfg["item_inter_num_interval"] = '[1,inf]'
         ds = dataset.Dataset(self.cfg)
         df = ds.inter_feat.copy()

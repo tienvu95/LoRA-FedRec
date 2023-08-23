@@ -16,3 +16,4 @@ CUDA_VISIBLE_DEVICES=1 python server.py --config-file configs/amv/ncf16.yaml  --
 CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/amv/lora4_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 100
 CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/amv/lora2_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 100
 CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/amv/lora8_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 100
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py -m net=fedmf16_lora2,fedmf16_lora8 TRAIN.lr=1e-2
