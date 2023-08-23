@@ -168,3 +168,4 @@ MF/sh_result
 /FedNCF/outputs
 *.bk
 dataset/
+wandb/
