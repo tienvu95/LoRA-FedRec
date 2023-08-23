@@ -1,0 +1,13 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+DATA:
+  root: /home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset
+  name: 'foursq-ny'
+
+FED:
+  num_clients: 50
+  aggregation_epochs: 400
+  local_epochs: 2

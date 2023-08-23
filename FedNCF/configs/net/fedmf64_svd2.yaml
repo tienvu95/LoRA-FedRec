@@ -1,0 +1,6 @@
+init_params:
+  _target_: fedlib.models.FedMF_SGD
+  gmf_emb_size: 64
+  rank: 2
+  bidirect: True
+name: fedmf${net.init_params.gmf_emb_size}_svd${net.init_params.rank}
