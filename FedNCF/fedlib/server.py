@@ -52,10 +52,10 @@ class SimpleServer:
         self.client_set =  self.client_set[num_clients:] + sample
 
         self._circulated_client_count += num_clients
-        if self._circulated_client_count >= len(self.client_set):
-            logging.info("Resample negative items")
-            self.datamodule.sample_negatives()
-            self._circulated_client_count -= len(self.client_set)
+        # if self._circulated_client_count >= len(self.client_set):
+        #     logging.info("Resample negative items")
+        #     # self.datamodule.sample_negatives()
+        #     self._circulated_client_count -= len(self.client_set)
 
         return sample
 

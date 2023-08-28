@@ -39,17 +39,12 @@ class NCFClient(Client):
         return self._cid
 
     def get_parameters(self, config) -> List[np.ndarray]:
-        # Return model parameters as a list of NumPy ndarrays
         private_params, sharable_params = self._model._get_splited_params()
-        # print(self._private_params['keys'])
-        # print("Update on private params", private_params['weights'][0].shape, np.linalg.norm(private_params['weights'][1] - self._private_params['weights'][1]))
-        # print("Update on private params", private_params['weights'][1].shape, np.linalg.norm(private_params['weights'][0] - self._private_params['weights'][0]))
         self._private_params = private_params
 
         return sharable_params
 
     def set_parameters(self, global_params: List[np.ndarray]) -> None:
-        # Set model parameters from a list of NumPy ndarrays
         self._model._set_state_from_splited_params([self._private_params, global_params])
 
     def fit(

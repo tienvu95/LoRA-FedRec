@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from tqdm import tqdm
 
 
 def hit(gt_item, pred_items):
@@ -15,18 +16,18 @@ def ndcg(gt_item, pred_items):
 	return 0
 
 
-def metrics(model, test_loader, top_k, device='cpu'):
+def metrics(model, test_loader, top_k, device='cpu', num_negatives=99):
 	HR, NDCG = [], []
 
 	preds = []
-	for user, item, label in test_loader:
+	for user, item, label in tqdm(test_loader, leave=True):
 		user = user.to(device)
 		item = item.to(device)
 		predictions = model(user, item, mask_zero_user_index=False)
 		preds.append(predictions)
 	
 	preds = torch.cat(preds, dim=0)
-	preds = preds.view(-1, test_loader.dataset.num_negatives + 1)
+	preds = preds.view(-1, num_negatives + 1)
 	_, topk_indices = torch.topk(preds, top_k, dim=-1)
 	_tmp = topk_indices == 0
 	HR = torch.any(_tmp, dim=-1).float().mean().item()

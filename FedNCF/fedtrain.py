@@ -86,8 +86,9 @@ def run_server(
         logging.info(f"Aggregation Epoch: {epoch}")
         log_dict.update(server.train_round(epoch_idx=epoch))
         logging.info("Evaluate model")
-        test_metrics = server.evaluate(test_loader)
-        log_dict.update(test_metrics)
+        if (epoch % cfg.EVAL.every_agg_epochs == 0) or (epoch == cfg.FED.aggregation_epochs - 1):
+            test_metrics = server.evaluate(test_loader)
+            log_dict.update(test_metrics)
         log_dict.update(server._timestats._time_dict)
         server._timestats.reset()
         mylogger.log(log_dict)

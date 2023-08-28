@@ -2,7 +2,7 @@
 defaults:
   - _self_
   - data: ml-1m.yaml
-  - net: fedncf16.yaml
+  - net: fedmf16.yaml
   - paths: default.yaml
   - hydra: default.yaml
 
@@ -31,6 +31,7 @@ TRAIN:
 
 EVAL:
   topk: 10
+  every_agg_epochs: 1
 
 EXP:
   seed: 42

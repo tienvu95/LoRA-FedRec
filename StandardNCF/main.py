@@ -21,7 +21,7 @@ args = config.get_parser().parse_args()
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = '1,2'
 # cudnn.benchmark = True
-device = "cuda:2"
+device = "cuda:0"
 
 
 ############################## PREPARE DATASET ##########################
@@ -31,14 +31,30 @@ device = "cuda:2"
 # test_dataset = data_utils.LastFM2kDataset(config.main_path, train=False)
 # train_dataset = data_utils.AmazonVideoDataset(config.main_path, train=True, num_negatives=args.num_ng)
 # test_dataset = data_utils.AmazonVideoDataset(config.main_path, train=False)
-train_dataset = data_utils.DoubanMovieDataset(config.main_path, train=True, num_negatives=args.num_ng)
-test_dataset = data_utils.DoubanMovieDataset(config.main_path, train=False)
+# train_dataset = data_utils.DoubanMovieDataset(config.main_path, train=True, num_negatives=args.num_ng)
+# test_dataset = data_utils.DoubanMovieDataset(config.main_path, train=False)
+from omegaconf import DictConfig
+
+data_cfg = DictConfig({'DATA': { 'name': 'amazon-video',
+								'num_negatives': 4,
+								'root': "/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset",
+								'test_num_ng': 99},
+						'DATALOADER': {
+							'batch_size': 256, 'num_workers': 0, 'shuffle': True
+						}})
+
+dm = data_utils.FedDataModule(data_cfg)
+dm.setup()
+# train_dataset = dm.train_dataset()
+# test_dataset = dm.test_dataset()
+
 # train_dataset = data_utils.PinterestDataset(config.main_path, train=True, num_negatives=args.num_ng)
 # test_dataset = data_utils.PinterestDataset(config.main_path, train=False)
-train_loader = data.DataLoader(train_dataset,
-		batch_size=args.batch_size, shuffle=True, num_workers=4)
-test_loader = data.DataLoader(test_dataset,
-		batch_size=args.test_num_ng+1, shuffle=False, num_workers=0)
+# train_loader = data.DataLoader(train_dataset,
+# 		batch_size=args.batch_size, shuffle=True, num_workers=4)
+# test_loader = data.DataLoader(test_dataset,
+# 		batch_size=args.test_num_ng+1, shuffle=False, num_workers=0)
+test_loader = dm.test_dataloader()
 
 ########################### CREATE MODEL #################################
 if config.model == 'NeuMF-pre':
@@ -50,9 +66,9 @@ else:
 	GMF_model = None
 	MLP_model = None
 
-print("Num users", train_dataset.num_users)
-print("Num items", train_dataset.num_items)
-model = model.NCF(train_dataset.num_users, train_dataset.num_items, args.factor_num, args.num_layers, 
+print("Num users", dm.num_users)
+print("Num items", dm.num_items)
+model = model.NCF(dm.num_users, dm.num_items, args.factor_num, args.num_layers, 
 						args.dropout, config.model, GMF_model, MLP_model)
 model.to(device)	
 loss_function = nn.BCEWithLogitsLoss()
@@ -75,21 +91,31 @@ count, best_hr = 0, 0
 for epoch in range(args.epochs):
 	model.train() # Enable dropout (if have).
 	start_time = time.time()
-	_, sample_time = log_time(lambda : train_loader.dataset.sample_negatives())
-	# _, sample_time = log_time(lambda : train_loader.dataset.ng_sample())
-	print("Sampling neg time", sample_time)
-	for batch_idx, (user, item, label) in tqdm(enumerate(train_loader), total=len(train_loader)):
-		user = user.to(device)
-		item = item.to(device)
-		label = label.float().to(device)
+	# _, sample_time = log_time(lambda : train_loader.dataset.sample_negatives())
 
-		optimizer.zero_grad()
-		prediction = model(user, item)
-		loss = loss_function(prediction, label)
-		loss.backward()
-		optimizer.step()
-		# writer.add_scalar('data/loss', loss.item(), count)
-		count += 1
+
+	for i in tqdm(range(dm.num_users)):
+		train_loader = dm.train_dataloader(i)
+		# train_loader = data.DataLoader(dm.train_dataset(),
+		# 	batch_size=args.batch_size, shuffle=True, num_workers=4)
+		# _, sample_time = log_time(lambda : train_loader.dataset.ng_sample())
+		# print("Sampling neg time", sample_time)
+		total_loss = 0
+		count = 0
+		for batch_idx, (user, item, label) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False, disable=True):
+			user = user.to(device)
+			item = item.to(device)
+			label = label.float().to(device)
+
+			optimizer.zero_grad()
+			prediction = model(user, item)
+			loss = loss_function(prediction, label)
+			loss.backward()
+			optimizer.step()
+			# writer.add_scalar('data/loss', loss.item(), count)
+			total_loss += loss.item()
+			count += 1
+	
 
 	model.eval()
 	with torch.no_grad():
@@ -98,7 +124,7 @@ for epoch in range(args.epochs):
 	elapsed_time = time.time() - start_time
 	print("The time elapse of epoch {:03d}".format(epoch) + " is: " + 
 			time.strftime("%H: %M: %S", time.gmtime(elapsed_time)))
-	print("HR: {:.3f}\tNDCG: {:.3f}".format(np.mean(HR), np.mean(NDCG)))
+	print("HR: {:.3f}\tNDCG: {:.3f}\tLoss: {:.4f}".format(np.mean(HR), np.mean(NDCG), total_loss/count))
 
 	if HR > best_hr:
 		best_hr, best_ndcg, best_epoch = HR, NDCG, epoch
