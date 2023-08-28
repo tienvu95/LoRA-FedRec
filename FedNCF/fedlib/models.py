@@ -156,7 +156,6 @@ class FedLoraNCF(LoraNCF):
         eval_model.embed_user_MLP = torch.nn.Embedding.from_pretrained(client_weights['embed_user_MLP.weight'])
         return eval_model
     
-
 class FedLoraMF(LoraMF):
     def __init__(self, item_num, gmf_emb_size=16, lora_rank=4, lora_alpha=4, freeze_B=False, user_num=1):
         super().__init__(user_num, item_num, gmf_emb_size, lora_rank, lora_alpha, freeze_B)
@@ -171,7 +170,7 @@ class FedLoraMF(LoraMF):
     @torch.no_grad()
     def _get_splited_params(self, keep_B=False, merge_weights=True, **kwarfs):
         if merge_weights:
-            self._merge_all_lora_weights()
+            self._merge_all_lora_weights()  
         self._reset_all_lora_weights(to_zero=True, keep_B=keep_B)
         sharable_params = {'weights': [], "keys": []}
         private_params = {'weights': [], "keys": []}
@@ -212,7 +211,7 @@ class FedLoraMF(LoraMF):
         eval_model.embed_user_GMF = torch.nn.Embedding.from_pretrained(client_weights['embed_user_GMF.weight'])
         return eval_model
 
-# -------------- FedDLR -----------------
+# -------------- FedLR -----------------
 def svd_compress(weight, rank):
     U, S, Vh = torch.linalg.svd(weight, full_matrices=False)
     U = U[:, :rank]
