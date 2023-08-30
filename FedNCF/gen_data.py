@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import random
@@ -5,7 +6,6 @@ from rec import data
 from recbole.data import dataset, create_dataset, data_preparation
 from recbole.config import Config
 
-DATA_ROOT = '/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset'
 
 def get_neg_items(rating_df: pd.DataFrame):
     """return all negative items & 100 sampled negative items"""
@@ -141,10 +141,49 @@ def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
         
     return train_df, test_data, cfg
 
-train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
-test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-train_df.to_csv(cfg['data_path'] + "/train.csv", index=False)
-test_df.to_csv(cfg['data_path'] + "/test.csv", index=False)
+def gen_movielen_files(root, train):
+    file_names = {
+        "train_ratings": "ml-1m.train.rating",
+        "test_ratings": "ml-1m.test.rating",
+        "test_negative": "ml-1m.test.negative",
+    }
+    if train: 
+        train_df = pd.read_csv(
+            root / file_names['train_ratings'], 
+            sep='\t', header=None, names=['user', 'item', 'rating'], 
+            usecols=[0, 1, 2], dtype={0: np.int32, 1: np.int32}
+        )
+        # print("Num 0 rating", len(train_df[train_df['rating'] == 0]))
+        train_df = train_df[train_df['rating'] > 0]
+        train_df['rating'] = 1.0
+        return train_df 
+    else:
+        test_data = []
+        with open(root / file_names['test_negative'], 'r') as fd:
+            line = fd.readline()
+            while line != None and line != '':
+                arr = line.split('\t')
+                u, pos_item = eval(arr[0])
+                neg_sample = []
+                for i in arr[1:]:
+                    neg_sample.append(int(i))
+                test_data.append([u, pos_item, neg_sample])
+                line = fd.readline()
+        test_df = pd.DataFrame(data=test_data, columns=['user', 'pos_item', 'neg_sample'])
+        return test_df
+
+# train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
+# test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+# DATA_ROOT = '/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset'
+DATA_ROOT = Path('/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/data/Data')
+
+
+train_df = gen_movielen_files(DATA_ROOT, train=True)
+test_df = gen_movielen_files(DATA_ROOT, train=False)
+# data_path = cfg['data_path']
+data_path = "/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset/ml-1m"
+train_df.to_csv(data_path + "/train.csv", index=False)
+test_df.to_csv(data_path + "/test.csv", index=False)
 
 print(train_df.info())
 print(train_df.head())

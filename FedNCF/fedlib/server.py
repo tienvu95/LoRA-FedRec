@@ -27,7 +27,7 @@ class SimpleServer:
     def __init__(self, clients: List[Client], cfg, model, datamodule: FedDataModule):
         self.client_set = clients
         self.model = model
-        _, self.server_params = self.model._get_splited_params()
+        _, self.server_params = self.model._get_splited_params(compress=False)
         self.cfg = cfg
         self.datamodule = datamodule
         self._circulated_client_count = 0
@@ -50,13 +50,7 @@ class SimpleServer:
         sample = self.client_set[:num_clients]
         # rotate the list by `num_clients`
         self.client_set =  self.client_set[num_clients:] + sample
-
         self._circulated_client_count += num_clients
-        # if self._circulated_client_count >= len(self.client_set):
-        #     logging.info("Resample negative items")
-        #     # self.datamodule.sample_negatives()
-        #     self._circulated_client_count -= len(self.client_set)
-
         return sample
 
     @torch.no_grad()
@@ -76,18 +70,13 @@ class SimpleServer:
         aggregator = SimpleAvgAggregator(self.server_params['weights'])
         for client in pbar:
             # Prepare client dataset
-            train_loader = self.datamodule.train_dataloader(client.cid)
-
-            # Fit client model
+            train_loader = self.datamodule.train_dataloader([client.cid])
             client_params, data_size, metrics = client.fit(train_loader, self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
-            
             aggregator.collect(client_params['weights'], weight=data_size)
             client_loss = np.mean(metrics['loss'])
             log_dict = {"client_loss": client_loss}
             total_loss += client_loss
-
             pbar.set_postfix(log_dict)
-        # print( self._timestats._pca_vars)
         updated_weight = aggregator.finallize()
         self.server_params['weights'] = updated_weight
 
@@ -98,12 +87,8 @@ class SimpleServer:
     @torch.no_grad()
     def evaluate(self, test_loader):
         self._timestats.mark_start("evaluate")
-        # sorted_client_set = sorted(self.client_set, key=lambda t: t.cid)
         sorted_client_set = self.sorted_client_set
-        # print(sorted_client_set[0].cid, sorted_client_set[1].cid, sorted_client_set[-1].cid)
         eval_model = self.model.merge_client_params(sorted_client_set, self.server_params, self.model, self.cfg.TRAIN.device)
-        # evaluate the model
-        # eval_model = self.model
         eval_model.eval()
         HR, NDCG = evaluate.metrics(eval_model, test_loader, self.cfg.EVAL.topk, device=self.cfg.TRAIN.device)
         self._timestats.mark_end("evaluate")

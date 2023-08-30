@@ -2,6 +2,6 @@ init_params:
   _target_: fedlib.models.FedLoraMF
   gmf_emb_size: 64
   lora_rank: 2
-  lora_alpha: 2
+  lora_alpha: ${net.init_params.lora_rank}
   freeze_B: True
 name: fedmf${net.init_params.gmf_emb_size}_lora${net.init_params.lora_rank}_freezeB

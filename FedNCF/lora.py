@@ -95,12 +95,11 @@ class Embedding(nn.Embedding, LoRALayer):
             self.norm_type, self.scale_grad_by_freq, self.sparse)
         if self.r > 0 and not self.merged:
             # result = nn.Embedding.forward(self, x)
-            if self.r > 0:
-                after_A = F.embedding(
-                    x, self.lora_A, self.padding_idx, self.max_norm,
-                    self.norm_type, self.scale_grad_by_freq, self.sparse
-                )
-                result += (after_A @ self.lora_B) * self.scaling
+            after_A = F.embedding(
+                x, self.lora_A, self.padding_idx, self.max_norm,
+                self.norm_type, self.scale_grad_by_freq, self.sparse
+            )
+            result += (after_A @ self.lora_B) * self.scaling
             return result
         else:
             return result

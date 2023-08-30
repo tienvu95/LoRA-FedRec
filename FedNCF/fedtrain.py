@@ -1,5 +1,6 @@
 from typing import List, Any, Tuple
 import hydra
+from omegaconf import OmegaConf
 import torch.nn
 import os
 import pandas as pd
@@ -54,6 +55,7 @@ class Logger():
             config=hparams,
             reinit=True
         )
+        run.name = f"{cfg.net.name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
         return run
 
 def run_server(
@@ -98,6 +100,7 @@ def run_server(
 
 @hydra.main(config_path=str(Path.cwd() / 'configs'), config_name='fedtrain.yaml', version_base="1.2")
 def main(cfg):
+    OmegaConf.resolve(cfg)
     logging.info(cfg)
     out_dir = Path(cfg.paths.output_dir)
     hist_df, pca_var_df = run_server(cfg)

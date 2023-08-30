@@ -16,4 +16,4 @@ output_dir: ${hydra:runtime.output_dir}
 
 # path to working directory
 work_dir: ${hydra:runtime.cwd}
-ckpt_root: ${oc.env:CKPT_ROOT}
+# ckpt_root: ${oc.env:CKPT_ROOT}

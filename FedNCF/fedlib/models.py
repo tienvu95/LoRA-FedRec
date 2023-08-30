@@ -98,8 +98,8 @@ class FedNCFModel(NCF):
         return eval_model
 
 class FedLoraNCF(LoraNCF):
-    def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False):
-        super().__init__(1, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout, lora_rank, lora_alpha, freeze_B)
+    def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False, user_num=1):
+        super().__init__(user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout, lora_rank, lora_alpha, freeze_B)
         if self.freeze_B:
             self.embed_item_GMF.lora_B.requires_grad = False
             self.embed_item_MLP.lora_B.requires_grad = False
@@ -231,7 +231,7 @@ class FedMF_SGD(MF):
             user = torch.zeros_like(user)
         return super().forward(user, item)
 
-    def _get_splited_params(self, compress=True):
+    def _get_splited_params(self, compress=True, old_shared_params=None):
         sharable_params = {'weights': [], "keys": []}
         private_params = {'weights': [], "keys": []}
         for key, val in self.state_dict().items():
@@ -240,7 +240,10 @@ class FedMF_SGD(MF):
                 private_params['keys'].append(key)
             else:
                 if compress and ('emb' in key) and ('weight' in key):
-                    val = svd_compress(val.detach(), self.rank)
+                    old_val = old_shared_params['weights'][len(sharable_params['weights'])]
+                    update = val.detach() - old_val
+                    update = svd_compress(update, self.rank)
+                    val = old_val + update
                     # print(torch.dist(val, compressed_val))
                     # val = compressed_val
                 sharable_params['weights'].append(val.detach().clone())

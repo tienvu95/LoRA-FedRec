@@ -427,7 +427,6 @@ class RecDataModule():
             for i in row['neg_sample']:
                 self.test_data.append((u, i, 0.0))
         self.test_data = np.array(self.test_data)
-
     
     def _sample_neg_per_user(self, u, num_negatives):
         # Sampling negative examples 
@@ -435,7 +434,7 @@ class RecDataModule():
         sample_size = num_negatives*self.user_interaction_count[u]
         neg_samples = []
         while int(sample_size) >= len(neg_items):
-            neg_samples[u] += neg_items
+            neg_samples += neg_items
             sample_size -= len(neg_items)
         neg_samples += random.sample(neg_items, sample_size)
         return neg_samples
@@ -443,12 +442,16 @@ class RecDataModule():
     def _sample_neg_traindf(self, num_negatives):
         # Sampling negative examples 
         neg_samples = {}
-        for u in len(self.neg_item_dict):
+        for u in range(len(self.neg_item_dict)):
             neg_samples[u] = self._sample_neg_per_user(u, num_negatives)
         neg_rating_df = pd.DataFrame.from_records(list(neg_samples.items()), columns=['user', 'neg_sample'])
         neg_rating_df = neg_rating_df.explode('neg_sample').reset_index(drop=True)
         neg_rating_df['rating'] = 0.0
         neg_rating_df.columns = ['user', 'item', 'rating']
+        neg_rating_df['user'] = neg_rating_df['user'].astype(int)
+        neg_rating_df['item'] = neg_rating_df['item'].astype(int)
+        neg_rating_df['rating'] = neg_rating_df['rating'].astype(float)
+
         return neg_rating_df
 
     def train_dataset(self, num_negatives=None):
@@ -503,6 +506,9 @@ def get_dataset(cfg, sample_negative=True):
 def get_datamodule(cfg):
     if cfg.DATA.name == "lastfm":
         root = cfg.DATA.root + "/lastfm"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "movielens":
+        root = cfg.DATA.root + "/ml-1m"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "amazon-video":
         root = cfg.DATA.root + "/Amazon_Instant_Video"

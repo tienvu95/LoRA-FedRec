@@ -17,13 +17,16 @@ class FedDataModule(object):
         self.num_users = self.rec_datamodule.num_users
         self.num_items = self.rec_datamodule.num_items
 
-    def train_dataset(self, cid):
+    def train_dataset(self, cid_list):
         num_negatives = self.rec_datamodule.num_train_negatives
         all_post_train_df = self.rec_datamodule.post_train_df
-        client_pos_traindf = all_post_train_df[all_post_train_df['user'] == cid]
+        client_pos_traindf = all_post_train_df[all_post_train_df['user'].isin(cid_list)]
         
-        client_neg_sample = self.rec_datamodule._sample_neg_per_user(cid, num_negatives=num_negatives)
-        client_neg_traindf = pd.DataFrame.from_records([(cid, client_neg_sample)], columns=['user', 'neg_sample'])
+        client_neg_sample = {}
+        for cid in cid_list:
+            client_neg_sample[cid] = self.rec_datamodule._sample_neg_per_user(cid, num_negatives=num_negatives)
+        # client_neg_sample = self.rec_datamodule._sample_neg_per_user(cid, num_negatives=num_negatives)
+        client_neg_traindf = pd.DataFrame.from_records(list(client_neg_sample.items()), columns=['user', 'neg_sample'])
         client_neg_traindf = client_neg_traindf.explode('neg_sample').reset_index(drop=True)
         client_neg_traindf['rating'] = 0.0
         client_neg_traindf.columns = ['user', 'item', 'rating']

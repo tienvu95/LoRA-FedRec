@@ -4,6 +4,7 @@
 # python train.py experiment=example
 
 DATA:
+  root: /home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset
   name: 'movielens'
 
 FED:

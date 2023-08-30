@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from abc import ABC, abstractmethod
 from .models import FedNCFModel
+from .compression import svd_compress
 
 class Client(ABC):
     @abstractmethod
@@ -38,10 +39,9 @@ class NCFClient(Client):
     def cid(self):
         return self._cid
 
-    def get_parameters(self, config) -> List[np.ndarray]:
-        private_params, sharable_params = self._model._get_splited_params()
+    def get_parameters(self, config, old_shared_params) -> List[np.ndarray]:
+        private_params, sharable_params = self._model._get_splited_params(old_shared_params=old_shared_params)
         self._private_params = private_params
-
         return sharable_params
 
     def set_parameters(self, global_params: List[np.ndarray]) -> None:
@@ -63,7 +63,7 @@ class NCFClient(Client):
         timestats.mark_end("fit")
 
         timestats.mark_start("get_parameters")
-        sharable_params = self.get_parameters(None)
+        sharable_params = self.get_parameters(None, server_params)
         timestats.mark_end("get_parameters")
 
         # if timestats is not None:
