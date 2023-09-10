@@ -35,7 +35,7 @@ class Client:
 
     def fit(
         self, server_params: TransferedParams, config: Dict[str, str], device, stats_logger: TimeStats
-    ) -> Tuple[List[np.ndarray], int, Dict]:
+    ) -> Tuple[TransferedParams, int, Dict]:
         # Preparing train dataloader
         train_loader = self.datamodule.train_dataloader([self.cid])
 
@@ -57,8 +57,8 @@ class Client:
                 sharable_params = self.get_parameters(None, server_params)
                 update = sharable_params.diff(server_params)
 
-            with stats_logger.timer('compress'):
-                update.compress(method='topk')
+            # with stats_logger.timer('compress'):
+            #     update.compress(method='topk')
 
         # timestats.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics

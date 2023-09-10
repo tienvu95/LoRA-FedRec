@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 import torch.nn as nn
 import torch.nn.functional as F 
-import FedNCF.fedlib.lora.lora as lora
+import lora
 
 class MF(nn.Module):
     def __init__(self, user_num, item_num, gmf_emb_size=16, ItemEmbedding=nn.Embedding):

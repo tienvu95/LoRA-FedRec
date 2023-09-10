@@ -46,7 +46,8 @@ class Embedding(nn.Embedding, LoRALayer):
             logging.info("Init lora A and B")
             self.lora_A = nn.Parameter(self.weight.new_zeros((num_embeddings, r)))
             self.lora_B = nn.Parameter(self.weight.new_zeros((r, embedding_dim)))
-            self.scaling = self.lora_alpha / self.r
+            scaling = self.lora_alpha / self.r
+            self.register_buffer('lora_scaling', torch.tensor([scaling]))
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
         self.reset_parameters()
@@ -70,7 +71,7 @@ class Embedding(nn.Embedding, LoRALayer):
     
     def merge_lora_weights(self):
         if self.r > 0:
-            lora_comp = (self.lora_A @ self.lora_B) * self.scaling
+            lora_comp = (self.lora_A @ self.lora_B) * self.lora_scaling
             # print("lora_comp", lora_comp.shape, torch.linalg.norm(lora_comp))
             # print(self.lora_A.sum())
             self.weight.data += lora_comp
@@ -99,7 +100,7 @@ class Embedding(nn.Embedding, LoRALayer):
                 x, self.lora_A, self.padding_idx, self.max_norm,
                 self.norm_type, self.scale_grad_by_freq, self.sparse
             )
-            result += (after_A @ self.lora_B) * self.scaling
+            result += (after_A @ self.lora_B) * self.lora_scaling
             return result
         else:
             return result
