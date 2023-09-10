@@ -4,42 +4,28 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from abc import ABC, abstractmethod
-from .models import FedNCFModel
-from .compression import svd_compress
+from .standard.models import FedNCFModel, TransferedParams
+from fedlib.data import FedDataModule
+from stats import TimeStats
 
-class Client(ABC):
-    @abstractmethod
-    def get_parameters(self, config):
-        pass
-
-    @abstractmethod
-    def set_parameters(self, config):
-        pass
-
-    @abstractmethod
-    def fit(self, train_loader: DataLoader,  parameters: List[np.ndarray], config: Dict[str, str], device):
-        pass
-
-class NCFClient(Client):
-    """Flower client implementing CIFAR-10 image classification using
-    PyTorch."""
-
+class Client:
     def __init__(
         self,
         cid,
         model: FedNCFModel,
+        datamodule
     ) -> None:
         self._cid = cid
+        self.datamodule = datamodule
         self._model = model
-        self._private_params = self._model._get_splited_params(compress=False)[0]
+        self._private_params = self._model._get_splited_params()[0]
         self.loss_fn = torch.nn.BCEWithLogitsLoss()
 
     @property
     def cid(self):
         return self._cid
 
-    def get_parameters(self, config, old_shared_params) -> List[np.ndarray]:
+    def get_parameters(self, config, old_shared_params) -> TransferedParams:
         private_params, sharable_params = self._model._get_splited_params(old_shared_params=old_shared_params)
         self._private_params = private_params
         return sharable_params
@@ -48,48 +34,35 @@ class NCFClient(Client):
         self._model._set_state_from_splited_params([self._private_params, global_params])
 
     def fit(
-        self, train_loader: DataLoader,  server_params: List[np.ndarray], config: Dict[str, str], device, timestats
+        self, server_params: TransferedParams, config: Dict[str, str], device, stats_logger: TimeStats
     ) -> Tuple[List[np.ndarray], int, Dict]:
+        # Preparing train dataloader
+        train_loader = self.datamodule.train_dataloader([self.cid])
+
         # Set model parameters, train model, return updated model parameters
         with torch.no_grad():
-            timestats.mark_start("set_parameters")
-            self.set_parameters(server_params)
-            timestats.mark_end("set_parameters")
+            with stats_logger.timer('set_parameters'):
+                self.set_parameters(server_params)
+            # param_groups = self._model._get_splited_params_for_optim()
+            # optimizer = torch.optim.Adam([{'params': list(param_groups[0].values()),},
+            #                               {'params': list(param_groups[1].values()), 'lr': config.TRAIN.lr*train_loader.batch_size}, ], lr=config.TRAIN.lr)
             optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
             # optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr)
 
-        timestats.mark_start("fit")
-        metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=config.FED.local_epochs, device=device)
-        timestats.mark_end("fit")
+        with stats_logger.timer('fit'):
+            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=config.FED.local_epochs, device=device)
+        
+        with torch.no_grad():
+            with stats_logger.timer('get_parameters'):
+                sharable_params = self.get_parameters(None, server_params)
+                update = sharable_params.diff(server_params)
 
-        timestats.mark_start("get_parameters")
-        sharable_params = self.get_parameters(None, server_params)
-        timestats.mark_end("get_parameters")
+            with stats_logger.timer('compress'):
+                update.compress(method='topk')
 
-        # if timestats is not None:
-        #     name2id = {n: i for i, n in enumerate(sharable_params['keys'])}
-        #     id1 = name2id['embed_item_GMF.weight']
-        #     id2 = name2id['embed_item_MLP.weight']
-        #     timestats.count_num_important_component(self._cid, 'embed_item_GMF.weights', sharable_params['weights'][id1] - server_params['weights'][id1])
-        #     timestats.count_num_important_component(self._cid, 'embed_item_MLP.weights', sharable_params['weights'][id2] - server_params['weights'][id2])
-
-        # name2id = {n: i for i, n in enumerate(server_params['keys'])}
-        # id1 = name2id['embed_item_GMF.lora_B']
-        # print(torch.abs(sharable_params['weights'][id1]).sum())
-        # print(torch.abs(sharable_params['weights'][id1] - server_params['weights'][id1]).sum())
-        # id1 = name2id['embed_item_MLP.lora_B']
-        # print(torch.abs(sharable_params['weights'][id1]).sum())
-        # print(torch.abs(sharable_params['weights'][id1] - server_params['weights'][id1]).sum())
-
-        return sharable_params, len(train_loader.dataset), metrics
-
-    # def evaluate(
-    #     self, parameters: List[np.ndarray], config: Dict[str, str]
-    # ) -> Tuple[float, int, Dict]:
-    #     # Set model parameters, evaluate model on local test dataset, return result
-    #     self.set_parameters(parameters)
-    #     return
-
+        # timestats.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
+        return update, len(train_loader.dataset), metrics
+    
     def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device):
         self._model.train() # Enable dropout (if have).
         loss_hist = []

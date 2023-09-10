@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 import torch.nn as nn
 import torch.nn.functional as F 
-import lora
+import FedNCF.fedlib.lora.lora as lora
 
 class MF(nn.Module):
     def __init__(self, user_num, item_num, gmf_emb_size=16, ItemEmbedding=nn.Embedding):
@@ -112,6 +112,7 @@ class LoraNCF(NCF):
         ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
         super().__init__(user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout, ItemEmbedding=ItemEmbLayer)
         self.freeze_B = freeze_B
+        self.lora_layer_names = ['embed_item_GMF', 'embed_item_MLP']
     
     def _merge_all_lora_weights(self):
         self.embed_item_GMF.merge_lora_weights()
@@ -126,6 +127,7 @@ class LoraMF(MF):
         ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
         super().__init__(user_num, item_num, gmf_emb_size, ItemEmbedding=ItemEmbLayer)
         self.freeze_B = freeze_B
+        self.lora_layer_names = ['embed_item_GMF']
     
     def _merge_all_lora_weights(self):
         self.embed_item_GMF.merge_lora_weights()

@@ -6,7 +6,9 @@ import math
 from scipy import stats
 
 def svd_compress(weight, rank):
-    U, S, Vh = torch.linalg.svd(weight, full_matrices=False)
+    # U, S, Vh = torch.linalg.svd(weight, full_matrices=False)
+    U, S, V = torch.svd_lowrank(weight, q=rank)
+    Vh = V.T
     U = U[:, :rank]
     S = S[:rank]
     Vh = Vh[:rank, :]

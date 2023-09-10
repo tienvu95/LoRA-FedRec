@@ -1,4 +1,4 @@
 init_params:
-  _target_: fedlib.models.FedMF
+  _target_: fedlib.standard.models.FedMF
   gmf_emb_size: 64
 name: fedmf${net.init_params.gmf_emb_size}

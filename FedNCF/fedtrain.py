@@ -13,50 +13,14 @@ import copy
 import tqdm
 import logging
 import rec
-from stats import TimeStats, log_hyperparameters
+from stats import TimeStats, Logger
 import torch.nn.functional as F
 import fedlib
+from fedlib.comm import ClientSampler
 
 import wandb
 
 os.environ['EXP_DIR'] = str(Path.cwd())
-
-class Logger():
-    def __init__(self, cfg, model, wandb=True) -> None:
-        self.wandb = wandb
-        if wandb:
-            self.run = self.init_wandb(cfg, model)
-        self.hist = []
-
-    def log(self, log_dict):
-        if self.wandb:
-            wandb.log(log_dict)
-        self.hist.append(log_dict)
-        logging.info(log_dict)
-        
-    def finish(self, **kwargs):
-        if self.wandb:
-            self.run.finish(**kwargs)
-        # pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
-        hist_df = pd.DataFrame(self.hist)
-        
-        return hist_df
-
-
-    @classmethod
-    def init_wandb(cls, cfg, model):
-        hparams = log_hyperparameters({"cfg": cfg, "model": model, "trainer": None})
-        # start a new wandb run to track this script
-        run = wandb.init(
-            # set the wandb project where this run will be logged
-            project="lowrank-fedrec",
-            
-            # track hyperparameters and run metadata
-            config=hparams,
-            reinit=True
-        )
-        run.name = f"{cfg.net.name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
-        return run
 
 def run_server(
     cfg,
@@ -79,9 +43,10 @@ def run_server(
     model.to(cfg.TRAIN.device)
 
     logging.info("Init clients")
-    clients = fedlib.server.initialize_clients(cfg, model, num_users)
+    client_sampler = ClientSampler(feddm.num_users)
+    client_sampler.initialize_clients(model, feddm, shuffle_seed=0)
     logging.info("Init server")
-    server = fedlib.server.SimpleServer(clients, cfg, model, feddm)
+    server = fedlib.server.SimpleServer(cfg, model, client_sampler)
 
     for epoch in range(cfg.FED.aggregation_epochs):
         log_dict = {"epoch": epoch}
@@ -92,8 +57,9 @@ def run_server(
             test_metrics = server.evaluate(test_loader)
             log_dict.update(test_metrics)
         log_dict.update(server._timestats._time_dict)
-        server._timestats.reset()
         mylogger.log(log_dict)
+        logging.info(server._timestats._pca_vars)
+        server._timestats.reset()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
     return hist_df, pca_var_df

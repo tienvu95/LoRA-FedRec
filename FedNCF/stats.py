@@ -1,15 +1,20 @@
+from typing import Any, Dict
+
 import time
 import numpy as np
 import scipy as sp
 import torch
-
-from typing import Any, Dict
-
 from omegaconf import OmegaConf
+from contextlib import contextmanager
+
+import wandb
+import logging
+
 
 class TimeStats(object):
     def __init__(self) -> None:
         self.reset()
+        self._pca_vars = []
 
     def __str__(self):
         return str(self._time_dict)
@@ -22,10 +27,17 @@ class TimeStats(object):
             "evaluate": 0,
             "get_parameters": 0,
         }
-        self._pca_vars = []
+        # self._pca_vars = []
     
     def set_aggregation_epoch(self, aggregation_epoch):
         self._aggregation_epoch = aggregation_epoch
+
+    @contextmanager
+    def timer(self, flag_name):
+        self.flag_timestem[flag_name] = time.time()
+        yield self.flag_timestem[flag_name]
+        self._time_dict[flag_name] = self._time_dict.get(flag_name, 0) + time.time() - self.flag_timestem[flag_name]
+        del self.flag_timestem[flag_name]
 
     def mark_start(self, name):
         self.flag_timestem[name] = time.time()
@@ -34,17 +46,55 @@ class TimeStats(object):
         self._time_dict[name] += time.time() - self.flag_timestem[name]
         del self.flag_timestem[name]
 
-    def count_num_important_component(self, cid, weight_name, A: torch.Tensor, percents=[0.99, 0.95, 0.9]):
-        num_cps, S = count_num_important_component(A, percents=percents)
-        self._pca_vars.append({"cid": cid, "aggregation_epoch": self._aggregation_epoch, "weight_name": weight_name, "num_important_components": num_cps, "S": S})
+    def stats_transfer_params(self, cid, stat_dict):
+        self._pca_vars.append({"cid": cid, "aggregation_epoch": self._aggregation_epoch, **stat_dict})
     
-def count_num_important_component(A: torch.Tensor, percents=[0.99, 0.95, 0.9]):
-    S = torch.linalg.svdvals(A.T @ A).cpu().numpy() / (A.shape[0] -  1)
-    S = S / S.sum()
-    S = np.cumsum(S)
-    return [np.sum(S < p) + 1 for p in percents], S
+def cal_explain_variance_ratio(A: torch.Tensor):
+    n_samples = A.shape[0]
+    S = torch.linalg.svdvals(A).cpu().numpy()
+    explained_variance_ = (S**2) / (n_samples - 1)
+    total_var = explained_variance_.sum()
+    explained_variance_ratio_ = explained_variance_ / total_var
+    return explained_variance_ratio_
+    # S = np.cumsum(explained_variance_ratio_)
+    # return [np.sum(S < p) + 1 for p in percents], S
+
+class Logger():
+    def __init__(self, cfg, model, wandb=True) -> None:
+        self.wandb = wandb
+        if wandb:
+            self.run = self.init_wandb(cfg, model)
+        self.hist = []
+
+    def log(self, log_dict):
+        if self.wandb:
+            wandb.log(log_dict)
+        self.hist.append(log_dict)
+        logging.info(log_dict)
+        
+    def finish(self, **kwargs):
+        if self.wandb:
+            self.run.finish(**kwargs)
+        # pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
+        hist_df = pd.DataFrame(self.hist)
+        
+        return hist_df
 
 
+    @classmethod
+    def init_wandb(cls, cfg, model):
+        hparams = log_hyperparameters({"cfg": cfg, "model": model, "trainer": None})
+        # start a new wandb run to track this script
+        run = wandb.init(
+            # set the wandb project where this run will be logged
+            project="lowrank-fedrec",
+            
+            # track hyperparameters and run metadata
+            config=hparams,
+            reinit=True
+        )
+        run.name = f"{cfg.net.name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
+        return run
 
 def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
     """Controls which config parts are saved by Lightning loggers.
