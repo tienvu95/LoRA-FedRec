@@ -15,10 +15,11 @@ def get_neg_items(rating_df: pd.DataFrame):
     user_interaction_count = interactions[['user',]]
     user_interaction_count['num_interaction'] = interactions['pos_items'].apply(len)
     user_interaction_count = dict(zip(user_interaction_count['user'].values, user_interaction_count['num_interaction'].values.tolist()))
-
-    interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
-    neg_item_dict = dict(zip(interactions['user'].values, interactions['neg_items'].values))
-    return neg_item_dict, user_interaction_count
+    # interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
+    # print(4)
+    pos_item_dict = dict(zip(interactions['user'].values, interactions['pos_items'].values))
+    print(5)
+    return item_pool, pos_item_dict, user_interaction_count
 
 def get_recbole_cfg(data_root, dataset_name):
     if dataset_name == 'lastfm':
@@ -44,6 +45,16 @@ def get_recbole_cfg(data_root, dataset_name):
         cfg["user_inter_num_interval"] = '[5,inf]'
         cfg["item_inter_num_interval"] = '[1,inf]'
         cfg['data_path']= data_root + "/" + 'Amazon_Instant_Video'
+        cfg["eval_args"]["order"] = 'TO' # Time order
+        # cfg["eval_args"]["order"] = 'RO'
+    elif dataset_name == 'amz_ins':
+        cfg = Config(model="BPR", dataset='Amazon_Industrial_and_Scientific', 
+            config_dict={'ITEM_ID_FIELD': 'item_id', 'LABEL_FIELD': 'label', 'TIME_FIELD':'timestamp', 'NEG_PREFIX': 'neg_',
+           'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'item_id', 'timestamp']},'seq_separator': ' '} )
+        cfg["eval_args"]["split"] = {'LS': 'test_only'}
+        cfg["user_inter_num_interval"] = '[5,inf]'
+        cfg["item_inter_num_interval"] = '[1,inf]'
+        cfg['data_path']= data_root + "/" + 'Amazon_Industrial_and_Scientific'
         cfg["eval_args"]["order"] = 'TO' # Time order
         # cfg["eval_args"]["order"] = 'RO'
     elif dataset_name == '4sq-ny':
@@ -111,7 +122,7 @@ def _split_index_by_leave_one_out(grouped_index, leave_one_num):
 
 def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
     ds, df, cfg = get_df_from_recbole(DATA_ROOT, dataset_name=dataset_name)
-    neg_item_dict, user_interaction_count = get_neg_items(df)
+    item_pool, pos_item_dict, user_interaction_count = get_neg_items(df)
     
     index = {}
     for i, key in enumerate(df['user'].values):
@@ -135,17 +146,18 @@ def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
     for index, row in test_df.iterrows():
         u = int(row['user'])
         pos_item = int(row['item'])
-        neg_items = random.sample(neg_item_dict[u], test_num_negatives)
+        user_neg_item_dict = list(item_pool - set(pos_item_dict[u]))
+        neg_items = random.sample(user_neg_item_dict, test_num_negatives)
         assert len(neg_items) == test_num_negatives
         test_data.append([u, pos_item, neg_items])
         
     return train_df, test_data, cfg
 
-def gen_movielen_files(root, train):
+def gen_movielen_files(root, train, prefix='ml-1m'):
     file_names = {
-        "train_ratings": "ml-1m.train.rating",
-        "test_ratings": "ml-1m.test.rating",
-        "test_negative": "ml-1m.test.negative",
+        "train_ratings": f"{prefix}.train.rating",
+        "test_ratings": f"{prefix}.test.rating",
+        "test_negative": f"{prefix}.test.negative",
     }
     if train: 
         train_df = pd.read_csv(
@@ -172,20 +184,22 @@ def gen_movielen_files(root, train):
         test_df = pd.DataFrame(data=test_data, columns=['user', 'pos_item', 'neg_sample'])
         return test_df
 
-# train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
-# test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-# DATA_ROOT = '/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset'
-DATA_ROOT = Path('/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/data/Data')
+DATA_ROOT = '../data'
+train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
+test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+# DATA_ROOT = Path('../data/Data')
 
 
-train_df = gen_movielen_files(DATA_ROOT, train=True)
-test_df = gen_movielen_files(DATA_ROOT, train=False)
+# train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
+# test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
 # data_path = cfg['data_path']
-data_path = "/home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset/ml-1m"
-train_df.to_csv(data_path + "/train.csv", index=False)
-test_df.to_csv(data_path + "/test.csv", index=False)
+data_path = Path("../dataset/amz_ins")
+if not data_path.exists():
+    data_path.mkdir(parents=True)
+train_df.to_csv(data_path / "train.csv", index=False)
+test_df.to_csv(data_path / "test.csv", index=False)
 
-print(train_df.info())
-print(train_df.head())
-print(test_df.info())
-print(test_df.head())
+# print(train_df.info())
+# print(train_df.head())
+# print(test_df.info())
+# print(test_df.head())

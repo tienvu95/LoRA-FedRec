@@ -31,30 +31,31 @@ def run_server(
     feddm.setup()
     num_items = feddm.num_items
     num_users = feddm.num_users
+    all_train_loader = feddm.train_dataloader()
     test_loader = feddm.test_dataloader()
     logging.info("Num users: %d" % num_users)
     logging.info("Num items: %d" % num_items)
     
     # define server side model
     logging.info("Init model")
-    model = hydra.utils.instantiate(cfg.net.init_params, item_num=num_items)
+    model = hydra.utils.instantiate(cfg.net.init, item_num=num_items)
     mylogger = Logger(cfg, model, wandb=cfg.TRAIN.wandb)
     
     model.to(cfg.TRAIN.device)
 
     logging.info("Init clients")
     client_sampler = ClientSampler(feddm.num_users)
-    client_sampler.initialize_clients(model, feddm, shuffle_seed=0)
+    client_sampler.initialize_clients(model, feddm, shuffle_seed=42)
     logging.info("Init server")
     server = fedlib.server.SimpleServer(cfg, model, client_sampler)
 
-    for epoch in range(cfg.FED.aggregation_epochs):
+    for epoch in range(cfg.FED.agg_epochs):
         log_dict = {"epoch": epoch}
         logging.info(f"Aggregation Epoch: {epoch}")
         log_dict.update(server.train_round(epoch_idx=epoch))
         logging.info("Evaluate model")
-        if (epoch % cfg.EVAL.every_agg_epochs == 0) or (epoch == cfg.FED.aggregation_epochs - 1):
-            test_metrics = server.evaluate(test_loader)
+        if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
+            test_metrics = server.evaluate(test_loader, all_train_loader)
             log_dict.update(test_metrics)
         log_dict.update(server._timestats._time_dict)
         mylogger.log(log_dict)

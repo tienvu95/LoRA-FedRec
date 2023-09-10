@@ -30,6 +30,9 @@ class TransferedParams(OrderedDict):
             self[key] += alpha*val
         return self
     
+    def server_step_(self, other, alpha=1):
+        return self.add_(other, alpha=alpha)
+    
     def div_scalar_(self, scalar):
         for key, val in self.items():
             self[key] /= scalar

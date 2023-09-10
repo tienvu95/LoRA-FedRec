@@ -21,12 +21,17 @@ def get_neg_items(rating_df: pd.DataFrame, test_inter_dict=None):
     user_interaction_count['num_interaction'] = interactions['pos_items'].apply(len)
     user_interaction_count = dict(zip(user_interaction_count['user'].values, user_interaction_count['num_interaction'].values.tolist()))
 
-    interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
-    neg_item_dict = dict(zip(interactions['user'].values, interactions['neg_items'].values))
+    pos_item_dict = dict(zip(interactions['user'].values, interactions['pos_items'].values))
+
+    # interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
+    # neg_item_dict = dict(zip(interactions['user'].values, interactions['neg_items'].values))
     if test_inter_dict is not None:
         for u, test_items in test_inter_dict.items():
-            neg_item_dict[u] = list(set(neg_item_dict[u]).difference(test_items))
-    return neg_item_dict, user_interaction_count
+            # neg_item_dict[u] = list(set(neg_item_dict[u]).difference(test_items))
+            # print(pos_item_dict[u])
+            # pos_item_dict[u] = list(pos_item_dict[u].update(test_items))
+            pos_item_dict[u].update(test_items)
+    return item_pool, pos_item_dict, user_interaction_count
 
 class MovieLen1MDataset(data.Dataset):
     file_names = {
@@ -150,260 +155,6 @@ class MovieLen1MDataset(data.Dataset):
     def __getitem__(self, idx):
         return self.data[idx] # user, item ,label
 
-class FedMovieLen1MDataset(MovieLen1MDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
-
-class PinterestDataset(MovieLen1MDataset):
-    file_names = {
-        "train_ratings": "pinterest-20.train.rating",
-        "test_ratings": "pinterest-20.test.rating",
-        "test_negative": "pinterest-20.test.negative",
-    }
-    meta = {
-        'num_users': 55187,
-        'num_items': 9916,
-    }
-
-class FedPinterestDataset(PinterestDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
-
-class LastFM2kDataset(MovieLen1MDataset):
-    def __init__(self, root, train=False, num_negatives=4, sample_neg=True) -> None:
-        # super().__init__(root, train, num_negatives)
-        self.data_root = root
-        self.num_negatives = num_negatives
-        self._train = train
-        ds, df = self._get_df()
-        df['rating'] = 1.0
-        grouped_inter_feat_index = ds._grouped_index(
-            ds.inter_feat["user_id"].values
-        )
-        next_index = ds._split_index_by_leave_one_out(
-            grouped_inter_feat_index, leave_one_num=1
-        )
-        df['user'] = df['user'].apply(int)
-        df['item'] = df['item'].apply(int)
-        
-        user_reid_dict = {u: i for i,u in enumerate(df['user'].unique())}
-        df['user'] = df['user'].apply(lambda u: user_reid_dict[u])
-
-        item_reid_dict = {i: j for j, i in enumerate(df['item'].unique())}
-        df['item'] = df['item'].apply(lambda i: item_reid_dict[i])
-
-        self.neg_item_dict, self.user_interaction_count = self._get_neg_items(df)
-        for k, v in self.user_interaction_count.items():
-            self.user_interaction_count[k] = int(v) - 1
-
-        self.num_users = df['user'].max() + 1
-        self.num_items = df['item'].max() + 1
-        print(self.num_users, self.num_items)
-        if train:
-            train_ds = df.iloc[next_index[0]]
-            train_ds = train_ds[['user', 'item', 'rating']].reset_index(drop=True)
-            self.rating_df = train_ds
-            if sample_neg:
-                self.sample_negatives()
-        else:
-            test_ds = df.iloc[next_index[1]]
-            test_ds = test_ds[['user', 'item', 'rating']].reset_index(drop=True)
-            self.num_negatives = 99
-            data = []
-            random.seed(42)
-            for index, row in test_ds.iterrows():
-                u = int(row['user'])
-                data.append([u, int(row['item']), 1.0])
-                try:
-                    neg_sample = random.sample(self.neg_item_dict[u], self.num_negatives)
-                except Exception as e:
-                    print(u, self.user_interaction_count[u], self.neg_item_dict[u])
-                    raise e
-                assert len(neg_sample) == self.num_negatives
-                for i in neg_sample:
-                    data.append([u, int(i), 0.0])
-            # self.rating_df = test_ds
-            self.data = tuple(data)
-            # print(self.data[:10])
-            # self.sample_negatives()
-    
-    def _get_df(self):
-        dataset_name = 'lastfm'
-        self.cfg = Config(model="BPR", 
-                          dataset=dataset_name, 
-                          config_dict={'ITEM_ID_FIELD': 'artist_id', 'LABEL_FIELD': 'label', 'NEG_PREFIX': 'neg_','USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'artist_id']},'seq_separator': ' '} )
-        self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
-        self.cfg["user_inter_num_interval"] = '[5,inf]'
-        self.cfg["item_inter_num_interval"] = '[2,inf]'
-        print(self.cfg['data_path'])
-        self.cfg['data_path']=self.data_root
-        ds = dataset.Dataset(self.cfg)
-        df = ds.inter_feat.copy()
-        df.rename(columns={'user_id': 'user', 'artist_id': 'item'}, inplace=True)
-        return ds, df
-
-class FedLastfmDataset(LastFM2kDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
-
-class AmazonVideoDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4, sample_negative=True) -> None:
-        super().__init__(root, train, num_negatives, sample_neg=sample_negative)
-    
-    def _get_df(self):
-        self.cfg = Config(model="BPR", dataset='Amazon_Instant_Video', 
-            config_dict={'ITEM_ID_FIELD': 'item_id', 'LABEL_FIELD': 'label', 'NEG_PREFIX': 'neg_',
-           'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'item_id']},'seq_separator': ' '} )
-        self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
-        self.cfg["user_inter_num_interval"] = '[5,inf]'
-        self.cfg["item_inter_num_interval"] = '[1,inf]'
-        self.cfg['data_path']= self.data_root + '/Amazon_Instant_Video'
-        ds = dataset.Dataset(self.cfg)
-        df = ds.inter_feat.copy()
-        df.rename(columns={'user_id': 'user', 'item_id': 'item'}, inplace=True)
-        return ds, df
-
-
-class FedAmazonVideoDataset(AmazonVideoDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
-    
-class DoubanMovieDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4, sample_neg=True) -> None:
-        super().__init__(root, train, num_negatives, sample_neg=sample_neg)
-    
-    def _get_df(self):
-        self.cfg = Config(model="BPR", dataset='douban', 
-            config_dict={'ITEM_ID_FIELD': 'item_id', 'LABEL_FIELD': 'label', 'NEG_PREFIX': 'neg_',
-           'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'item_id']},'seq_separator': ' '} )
-        self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
-        self.cfg["user_inter_num_interval"] = '[2,inf]'
-        # self.cfg["item_inter_num_interval"] = '[1,inf]'
-        ds = dataset.Dataset(self.cfg)
-        df = ds.inter_feat.copy()
-        df.rename(columns={'user_id': 'user', 'item_id': 'item'}, inplace=True)
-        return ds, df
-
-class FedDoubanMovieDataset(DoubanMovieDataset):
-    def __init__(self, root, train=False, num_negatives=4) -> None:
-        super().__init__(root, train, num_negatives, sample_neg=False)
-
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-        pass
-    
-    def set_client(self, cid):
-        self.cid = cid
-        df = self.rating_df[self.rating_df['user'] == self.cid]
-        
-        neg_samples = {}
-        neg_items = self.neg_item_dict[self.cid]
-        sample_size = self.num_negatives*self.user_interaction_count[u]
-        neg_samples[self.cid] = []
-        while int(sample_size) >= len(neg_items):
-            neg_samples[self.cid] += neg_items
-            sample_size -= len(neg_items)
-        neg_samples[self.cid] += random.sample(neg_items, sample_size)
-        neg_samples[self.cid] = self.neg_item_dict[self.cid]
-        neg_rating_df = pd.DataFrame.from_records(list(neg_samples.items()), columns=['user', 'neg_sample'])
-        # neg_rating_df = self.rarting_df[['user', 'rating']]
-        # neg_rating_df['neg_sample'] = self.rarting_df['user'].map(lambda u: random.sample(self.neg_item_dict[u], num_negatives))
-
-        neg_rating_df = neg_rating_df.explode('neg_sample').reset_index(drop=True)
-        neg_rating_df['rating'] = 0.0
-        # neg_rating_df = neg_rating_df[['user', 'neg_sample', 'rating']]
-        neg_rating_df.columns = ['user', 'item', 'rating']
-        # neg_rating_df = neg_rating_df.astype({'user': 'int64', 'item':'int64'})
-        
-        train_rating_df = pd.concat([df, neg_rating_df], ignore_index=True)
-        self.data = train_rating_df.values.tolist()
-
-    
-    def __len__(self):
-        return len(self.data)
-
-class FoursquareNYDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4, sample_negative=True) -> None:
-        super().__init__(root, train, num_negatives, sample_neg=sample_negative)
-    
-    def _get_df(self):
-        self.cfg = Config(model="BPR", dataset='foursquare_NYC', 
-            config_dict={'ITEM_ID_FIELD': 'venue_id', 'LABEL_FIELD': 'label', 'NEG_PREFIX': 'neg_',
-           'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'venue_id']},'seq_separator': ' '} )
-        self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
-        self.cfg["user_inter_num_interval"] = '[5,inf]'
-        self.cfg['data_path']= self.data_root + '/foursquare_NYC'
-        # self.cfg["item_inter_num_interval"] = '[1,inf]'
-        ds = dataset.Dataset(self.cfg)
-        df = ds.inter_feat.copy()
-        df.rename(columns={'user_id': 'user', 'venue_id': 'item'}, inplace=True)
-        return ds, df
-
-class FedFoursquareNYDataset(FoursquareNYDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
-    
-class BookCrossingDataset(LastFM2kDataset):
-    def __init__(self, root, train=False, num_negatives=4) -> None:
-        super().__init__(root, train, num_negatives)
-    
-    def _get_df(self):
-        self.cfg = Config(model="BPR", dataset='book-crossing', 
-            config_dict={'ITEM_ID_FIELD': 'item_id', 'LABEL_FIELD': 'label', 'NEG_PREFIX': 'neg_',
-           'USER_ID_FIELD': 'user_id','field_separator': '\t','load_col': {'inter': ['user_id', 'item_id']},'seq_separator': ' '} )
-        self.cfg["eval_args"]["split"] = {'LS': 'test_only'}
-        self.cfg["user_inter_num_interval"] = '[5,inf]'
-        # self.cfg["item_inter_num_interval"] = '[1,inf]'
-        ds = dataset.Dataset(self.cfg)
-        df = ds.inter_feat.copy()
-        df.rename(columns={'user_id': 'user', 'item_id': 'item'}, inplace=True)
-        return ds, df
-
-class FedBookCrossingDataset(BookCrossingDataset):
-    def sample_negatives(self):
-        self.train_rating_data = self._sample_nagatives()
-    
-    def set_client(self, cid):
-        self.cid = cid
-        self.data = self.train_rating_data[self.train_rating_data['user'] == self.cid].values.tolist()
-    
-    def __len__(self):
-        return len(self.data)
 
 class RecDataModule():
     def __init__(self, root, num_train_negatives=4) -> None:
@@ -418,7 +169,7 @@ class RecDataModule():
 
         self.test_df['neg_sample'] = self.test_df['neg_sample'].apply(lambda x: [int(s) for s in x[1:-1].split(',')])
         test_inter_dict = self.test_df.apply(lambda x: x['neg_sample'] + [x['pos_item']], axis=1)
-        self.neg_item_dict, self.user_interaction_count = get_neg_items(self.post_train_df, test_inter_dict)
+        self.item_pool, self.pos_item_dict, self.user_interaction_count = get_neg_items(self.post_train_df, test_inter_dict)
 
         self.test_data = []
         for index, row in self.test_df.iterrows():
@@ -428,9 +179,12 @@ class RecDataModule():
                 self.test_data.append((u, i, 0.0))
         self.test_data = np.array(self.test_data)
     
+    def _get_neg_items_of_user(self, u):
+        return self.item_pool - self.pos_item_dict[u]
+
     def _sample_neg_per_user(self, u, num_negatives):
         # Sampling negative examples 
-        neg_items = self.neg_item_dict[u]
+        neg_items = list(self._get_neg_items_of_user(u))
         sample_size = num_negatives*self.user_interaction_count[u]
         neg_samples = []
         while int(sample_size) >= len(neg_items):
@@ -442,7 +196,7 @@ class RecDataModule():
     def _sample_neg_traindf(self, num_negatives):
         # Sampling negative examples 
         neg_samples = {}
-        for u in range(len(self.neg_item_dict)):
+        for u in range(len(self.pos_item_dict)):
             neg_samples[u] = self._sample_neg_per_user(u, num_negatives)
         neg_rating_df = pd.DataFrame.from_records(list(neg_samples.items()), columns=['user', 'neg_sample'])
         neg_rating_df = neg_rating_df.explode('neg_sample').reset_index(drop=True)
@@ -475,34 +229,6 @@ class RecDataModule():
         dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
         return dataset
 
-
-
-def get_dataset(cfg, sample_negative=True):
-    if cfg.DATA.name == "movielens":
-        train_dataset = MovieLen1MDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = MovieLen1MDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "pinterest":
-        train_dataset = PinterestDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = PinterestDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "lastfm":
-        train_dataset = LastFM2kDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = LastFM2kDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "amazon-video":
-        train_dataset = AmazonVideoDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = AmazonVideoDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "douban":
-        train_dataset = DoubanMovieDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = DoubanMovieDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "foursq-ny":
-        train_dataset = FoursquareNYDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = FoursquareNYDataset(cfg.DATA.root, train=False)
-    elif cfg.DATA.name == "book-crossing":
-        train_dataset = BookCrossingDataset(cfg.DATA.root, train=True, num_negatives=cfg.DATA.num_negatives, sample_negative=sample_negative)
-        test_dataset = BookCrossingDataset(cfg.DATA.root, train=False)
-    else:
-        raise ValueError
-    return train_dataset, test_dataset
-
 def get_datamodule(cfg):
     if cfg.DATA.name == "lastfm":
         root = cfg.DATA.root + "/lastfm"
@@ -510,8 +236,14 @@ def get_datamodule(cfg):
     elif cfg.DATA.name == "movielens":
         root = cfg.DATA.root + "/ml-1m"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "pinterest":
+        root = cfg.DATA.root + "/pinterest"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "amazon-video":
         root = cfg.DATA.root + "/Amazon_Instant_Video"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "amazon-industry-and-science":
+        root = cfg.DATA.root + "/amz_ins"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "foursq-ny":
         root = cfg.DATA.root + "/foursquare_NYC"

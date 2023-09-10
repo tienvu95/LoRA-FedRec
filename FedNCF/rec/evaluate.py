@@ -15,12 +15,22 @@ def ndcg(gt_item, pred_items):
 		return np.reciprocal(np.log2(index+2))
 	return 0
 
+def cal_loss(model, train_loader, loss_function, device='cpu'):
+	losses = []
+	for user, item, label in tqdm(train_loader, leave=False):
+		user = user.to(device)
+		item = item.to(device)
+		label = label.to(device)
+		predictions = model(user, item, mask_zero_user_index=False)
+		loss = loss_function(predictions, label)
+		losses.append(loss.item())
+	return np.mean(losses).item()
 
 def metrics(model, test_loader, top_k, device='cpu', num_negatives=99):
 	HR, NDCG = [], []
 
 	preds = []
-	for user, item, label in tqdm(test_loader, leave=True):
+	for user, item, label in tqdm(test_loader, leave=False):
 		user = user.to(device)
 		item = item.to(device)
 		predictions = model(user, item, mask_zero_user_index=False)

@@ -4,9 +4,10 @@
 # python train.py experiment=example
 
 DATA:
+  root: ../dataset
   name: 'pinterest'
 
 FED:
   num_clients: 120
-  aggregation_epochs: 400
+  agg_epochs: 400
   local_epochs: 2

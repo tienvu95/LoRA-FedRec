@@ -4,10 +4,10 @@
 # python train.py experiment=example
 
 DATA:
-  root: /home/ubuntu/hieu.nn/IJCAI-23-PFedRec/dataset
+  root: ../dataset
   name: 'amazon-video'
 
 FED:
   num_clients: 120
-  aggregation_epochs: 400
+  agg_epochs: 400
   local_epochs: 2

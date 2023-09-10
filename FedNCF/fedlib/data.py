@@ -1,6 +1,6 @@
 import torch
 import torch.utils.data as data
-from rec.data import get_dataset, get_datamodule, RecDataModule
+from rec.data import get_datamodule, RecDataModule
 import pandas as pd
 
 class FedDataModule(object):
@@ -46,5 +46,7 @@ class FedDataModule(object):
     def test_dataloader(self):
         return data.DataLoader(self.rec_datamodule.test_dataset(), batch_size=1024, shuffle=False, num_workers=2)
 
-    def train_dataloader(self, cid):
+    def train_dataloader(self, cid=None):
+        if cid is None:
+            return data.DataLoader(self.rec_datamodule.train_dataset(), batch_size=1024, shuffle=False, num_workers=8)
         return data.DataLoader(self.train_dataset(cid), **self.cfg.DATALOADER)

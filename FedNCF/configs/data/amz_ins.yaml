@@ -5,9 +5,9 @@
 
 DATA:
   root: ../dataset
-  name: 'foursq-ny'
+  name: 'amazon-industry-and-science'
 
 FED:
-  num_clients: 50
+  num_clients: 120
   agg_epochs: 400
   local_epochs: 2

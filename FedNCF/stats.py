@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import wandb
 import logging
+import pandas as pd
 
 
 class TimeStats(object):
@@ -87,7 +88,7 @@ class Logger():
         # start a new wandb run to track this script
         run = wandb.init(
             # set the wandb project where this run will be logged
-            project="lowrank-fedrec",
+            project="lowrank-fedrec-2",
             
             # track hyperparameters and run metadata
             config=hparams,

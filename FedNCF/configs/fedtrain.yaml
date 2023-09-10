@@ -8,7 +8,7 @@ defaults:
 
 FED:
   num_clients: 120
-  aggregation_epochs: 400
+  agg_epochs: 400
   local_epochs: 2
 
 DATA:
@@ -23,7 +23,7 @@ DATALOADER:
   num_workers: 0
 
 TRAIN:
-  lr: 1e-3
+  lr: 1e-2
   weight_decay: None
   lr_scheduler: None
   device: 'cuda'
@@ -31,7 +31,7 @@ TRAIN:
 
 EVAL:
   topk: 10
-  every_agg_epochs: 1
+  interval: 1
 
 EXP:
   seed: 42
