@@ -16,15 +16,22 @@ class SimpleServer:
         self.client_sampler = client_sampler
         
         self.model = model
-        self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
+        # self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
         
         self._timestats = TimeStats()
     
     def _step_server_optim(self, delta_params):
         self.server_params.server_step_(delta_params)
         self.model._set_state_from_splited_params([self._dummy_private_params, self.server_params])
+    
+    def prepare(self):
+        # reinit
+        self.model.server_prepare()
+        self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
+
 
     def train_round(self, epoch_idx: int = 0):
+        self.prepare()
         participants = self.client_sampler.next_round(self.cfg.FED.num_clients)
         aggregator = AvgAggregator(self.server_params)
         total_loss = 0

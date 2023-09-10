@@ -167,32 +167,8 @@ class FedLoraMF(LoraMF, FedLoraParamsSplitter):
             user = torch.zeros_like(user)
         return super().forward(user, item)
     
-    # @torch.no_grad()
-    # def _get_splited_params(self, keep_B=False, merge_weights=True, **kwarfs):
-    #     if merge_weights:
-    #         self._merge_all_lora_weights()  
-    #     self._reset_all_lora_weights(to_zero=True, keep_B=keep_B)
-    #     sharable_params = {'weights': [], "keys": []}
-    #     private_params = {'weights': [], "keys": []}
-    #     for key, val in self.state_dict().items():
-    #         if 'user' in key:
-    #             private_params['weights'].append(val.detach().clone())
-    #             private_params['keys'].append(key)
-    #         else:
-    #             sharable_params['weights'].append(val.detach().clone())
-    #             sharable_params['keys'].append(key)
-    #     return private_params, sharable_params
-
-    # @torch.no_grad()
-    # def _set_state_from_splited_params(self, splited_params):
-    #     # Set model parameters from a list of NumPy ndarrays
-    #     private_params, sharable_params = splited_params
-    #     params_dict = list(zip(sharable_params['keys'], sharable_params['weights']))
-    #     # if private_params is not None:
-    #     params_dict += list(zip(private_params['keys'], private_params['weights']))
-    #     state_dict = OrderedDict({k: v for k, v in params_dict})
-    #     self.load_state_dict(state_dict, strict=True)
-    #     self._reset_all_lora_weights(keep_B=self.freeze_B)
+    def server_prepare(self):
+        self._reset_all_lora_weights(to_zero=False, keep_B=False)
     
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)

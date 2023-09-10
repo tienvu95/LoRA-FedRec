@@ -96,6 +96,9 @@ class FedMF(MF, FedParamSpliter):
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
     
+    def server_prepare(self):
+        return
+    
     @classmethod
     def merge_client_params(cls, clients, server_params, model, device):
         client_weights = [c._private_params.values() for c in clients]
