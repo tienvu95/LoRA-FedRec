@@ -36,6 +36,10 @@ class SimpleServer:
         aggregator = AvgAggregator(self.server_params)
         total_loss = 0
 
+        if epoch_idx > 0:
+            self.server_params.compress(**self.cfg.FED.compression_kwargs)
+            self.server_params.decompress()
+
         self._timestats.set_aggregation_epoch(epoch_idx)
         pbar = tqdm.tqdm(participants, desc='Training')
         update_numel = 0
@@ -43,7 +47,7 @@ class SimpleServer:
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
         for client in pbar:
             update, data_size, metrics = client.fit(self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
-            update_numel += sum([torch.numel(t) for t in update.values()])
+            update_numel += sum([t.numel() for t in update.values()])
             aggregator.collect(update, weight=data_size)
             
             client_loss = np.mean(metrics['loss'])

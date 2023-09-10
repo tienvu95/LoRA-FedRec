@@ -43,6 +43,7 @@ class AvgAggregator:
        self.count = 0
         
     def collect(self, params: TransferedParams, weight=1):
+       params.decompress()
        self.aggregated_params = self.aggregated_params.add_(params, alpha=weight)
        self.count += weight
     

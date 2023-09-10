@@ -5,15 +5,33 @@ import time
 import math
 from scipy import stats
 
-def svd_compress(weight, rank):
-    # U, S, Vh = torch.linalg.svd(weight, full_matrices=False)
-    U, S, V = torch.svd_lowrank(weight, q=rank)
-    Vh = V.T
-    U = U[:, :rank]
-    S = S[:rank]
-    Vh = Vh[:rank, :]
-    lowrank_weight = U @ torch.diag(S) @ Vh
-    return lowrank_weight
+class SVDMess():
+    def __init__(self, U, S, Vh):
+        self.U = U
+        self.S = S
+        self.Vh = Vh
+
+    @staticmethod
+    def svd_compress(weight, rank):
+        # U, S, Vh = torch.linalg.svd(weight, full_matrices=False)
+        U, S, V = torch.svd_lowrank(weight, q=rank)
+        Vh = V.T
+        U = U[:, :rank]
+        S = S[:rank]
+        Vh = Vh[:rank, :]
+        # lowrank_weight = U @ torch.diag(S) @ Vh
+        return SVDMess(U, S, Vh)
+
+    @staticmethod
+    def svd_decompress(mess):
+        U, S, Vh = mess
+        return U @ torch.diag(S) @ Vh
+    
+    def decompress(self):
+        return SVDMess.svd_decompress((self.U, self.S, self.Vh))
+    
+    def numel(self):
+        return self.U.numel() + self.S.numel() + self.Vh.numel()
 
 class NoneCompressor():
     def __init__(self):

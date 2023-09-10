@@ -1,0 +1,7 @@
+# @package _global_
+
+FED:
+  compression_kwargs:
+    method: 'svd'
+    rank: 4
+  compression_plot_name: 'svd${FED.compression_kwargs.rank}'

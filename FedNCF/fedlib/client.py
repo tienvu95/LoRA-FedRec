@@ -57,8 +57,8 @@ class Client:
                 sharable_params = self.get_parameters(None, server_params)
                 update = sharable_params.diff(server_params)
 
-            # with stats_logger.timer('compress'):
-            #     update.compress(method='topk')
+            with stats_logger.timer('compress'):
+                update.compress(**config.FED.compression_kwargs)
 
         # timestats.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics

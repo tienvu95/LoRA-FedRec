@@ -1,0 +1,5 @@
+# @package _global_
+
+FED:
+  compression_kwargs:
+    method: 'none'

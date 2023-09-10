@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 from rec.models import MF, NCF
 from stats import cal_explain_variance_ratio
-from fedlib.compression import svd_compress, TopKCompressor
+from fedlib.compression import SVDMess, TopKCompressor
 
 class TransferedParams(OrderedDict):
     def __init__(self, *args, **kwargs):
@@ -39,14 +39,22 @@ class TransferedParams(OrderedDict):
         return self
 
     def compress(self, method='svd', **kwargs):
-        if method == 'svd':
-            self['embed_item_GMF.weight'] = svd_compress(self['embed_item_GMF.weight'], **kwargs)
+        self.compress_method = method
+        if method == 'none':
+            pass
+        elif method == 'svd':
+            self['embed_item_GMF.weight'] = SVDMess.svd_compress(self['embed_item_GMF.weight'], **kwargs)
         elif method == 'topk': 
             flatten_mess = self.compressor.flatten(self['embed_item_GMF.weight'], name='embed_item_GMF.weight')
             tensor, indexes, values = self.compressor.compress(flatten_mess, name='embed_item_GMF.weight', **kwargs)
             decompressed_mess = self.compressor.decompress_new(values, indexes, name='embed_item_GMF.weight')
             mess = self.compressor.unflatten(decompressed_mess, name='embed_item_GMF.weight')
             self['embed_item_GMF.weight'] = mess
+    
+    def decompress(self):
+        if self.compress_method == 'none':
+            return
+        self['embed_item_GMF.weight'] = self['embed_item_GMF.weight'].decompress()
 
 class FedParamSpliter:
     def __init__(self) -> None:

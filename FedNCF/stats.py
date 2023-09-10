@@ -94,7 +94,10 @@ class Logger():
             config=hparams,
             reinit=True
         )
-        run.name = f"{cfg.net.name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
+        if cfg.FED.compression_kwargs.method != "none":
+            run.name = f"{cfg.net.name}-{cfg.FED.compression_plot_name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
+        else:
+            run.name = f"{cfg.net.name}-{cfg.FED.num_clients}-{cfg.FED.local_epochs}-{run.name.split('-')[-1]}"
         return run
 
 def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
