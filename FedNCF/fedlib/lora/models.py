@@ -7,12 +7,11 @@ import torch.nn.functional as F
 import lora
 from rec.models import LoraNCF, LoraMF
 from stats import cal_explain_variance_ratio
-from fedlib.compression import svd_compress, TopKCompressor
+# from fedlib.compression import TopKCompressor
 
 class LoRATransferedParams(OrderedDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.compressor = TopKCompressor()
 
     def diff(self, other):
         diff = LoRATransferedParams()
@@ -48,14 +47,10 @@ class LoRATransferedParams(OrderedDict):
         return self
 
     def compress(self, method='svd', **kwargs):
-        if method == 'svd':
-            self['embed_item_GMF.weight'] = svd_compress(self['embed_item_GMF.weight'], **kwargs)
-        elif method == 'topk': 
-            flatten_mess = self.compressor.flatten(self['embed_item_GMF.weight'], name='embed_item_GMF.weight')
-            tensor, indexes, values = self.compressor.compress(flatten_mess, name='embed_item_GMF.weight', **kwargs)
-            decompressed_mess = self.compressor.decompress_new(values, indexes, name='embed_item_GMF.weight')
-            mess = self.compressor.unflatten(decompressed_mess, name='embed_item_GMF.weight')
-            self['embed_item_GMF.weight'] = mess
+        return
+
+    def decompress(self):
+        return
 
 class FedLoraParamsSplitter:
     def __init__(self) -> None:
