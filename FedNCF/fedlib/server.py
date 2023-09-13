@@ -45,8 +45,11 @@ class SimpleServer:
         update_numel = 0
         all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
+        # update_norm = 0
         for client in pbar:
             update, data_size, metrics = client.fit(self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
+            # update_norm += torch.linalg.norm((update['embed_item_GMF.lora_A'] @ update['embed_item_GMF.lora_B'])*update["embed_item_GMF.lora_scaling"]).item()
+            # update_norm += torch.linalg.norm(update['embed_item_GMF.weight']).item()
             update_numel += sum([t.numel() for t in update.values()])
             aggregator.collect(update, weight=data_size)
             
@@ -59,7 +62,7 @@ class SimpleServer:
         self._step_server_optim(aggregated_update)
         # B_1 = self.server_params['embed_item_GMF.lora_B'].clone()
         # print(torch.linalg.norm(B_1 - B_0))
-
+        # print("update norm", update_norm / len(participants))
         return {"client_loss": total_loss / len(participants), "update_numel": update_numel / len(participants), "data_size": all_data_size}
 
     

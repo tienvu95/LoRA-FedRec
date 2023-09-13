@@ -27,7 +27,7 @@ DATALOADER:
 
 TRAIN:
   lr: 1e-2
-  weight_decay: None
+  weight_decay: 0
   lr_scheduler: None
   device: 'cuda'
   wandb: False

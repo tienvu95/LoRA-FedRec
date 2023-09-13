@@ -88,7 +88,7 @@ class FedLoraParamsSplitter:
         private_params, submit_params = splited_params
         params_dict = dict(private_params, **submit_params)
         state_dict = OrderedDict(params_dict)
-        self.load_state_dict(state_dict, strict=False)
+        self.load_state_dict(state_dict, strict=True)
         self._merge_all_lora_weights()
         self._reset_all_lora_weights(keep_B=self.freeze_B)
 

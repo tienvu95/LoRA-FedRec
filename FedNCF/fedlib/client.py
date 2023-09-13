@@ -46,7 +46,7 @@ class Client:
             # param_groups = self._model._get_splited_params_for_optim()
             # optimizer = torch.optim.Adam([{'params': list(param_groups[0].values()),},
             #                               {'params': list(param_groups[1].values()), 'lr': config.TRAIN.lr*train_loader.batch_size}, ], lr=config.TRAIN.lr)
-            optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr)
+            optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
             # optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr)
 
         with stats_logger.timer('fit'):
