@@ -12,14 +12,17 @@ def get_neg_items(rating_df: pd.DataFrame):
     item_pool = set(rating_df['item'].unique())
     interactions = rating_df.groupby('user')['item'].apply(set).reset_index().rename(
         columns={'item': 'pos_items'})
-    user_interaction_count = interactions[['user',]]
-    user_interaction_count['num_interaction'] = interactions['pos_items'].apply(len)
-    user_interaction_count = dict(zip(user_interaction_count['user'].values, user_interaction_count['num_interaction'].values.tolist()))
+    user_interaction_count = dict(zip(interactions['user'].values, interactions['pos_items'].apply(len).values.tolist()))
+    
+    item_interaction_df = rating_df.groupby('item')['user'].count().reset_index().rename({'user': 'count'}, axis=1)
+    print(item_interaction_df)
+    item_interaction_count = dict(zip(item_interaction_df['item'].values, item_interaction_df['count'].values.tolist()))
+    
     # interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
     # print(4)
     pos_item_dict = dict(zip(interactions['user'].values, interactions['pos_items'].values))
     print(5)
-    return item_pool, pos_item_dict, user_interaction_count
+    return item_pool, pos_item_dict, user_interaction_count, item_interaction_count
 
 def get_recbole_cfg(data_root, dataset_name):
     if dataset_name == 'lastfm':
@@ -91,14 +94,16 @@ def get_df_from_recbole(data_root, dataset_name):
     df['user'] = df['user'].apply(int)
     df['item'] = df['item'].apply(int)
     df['rating'] = 1.0
-    user_reid_dict = {u: i for i,u in enumerate(df['user'].unique())}
+    user_reid_dict = {j: i for i,j in enumerate(df['user'].unique())}
+    item_reid_dict = {j: i for i,j in enumerate(df['item'].unique())}
     df['user'] = df['user'].apply(lambda u: user_reid_dict[u])
-    item_reid_dict = {i: j for j, i in enumerate(df['item'].unique())}
     df['item'] = df['item'].apply(lambda i: item_reid_dict[i])
+
+    print(df.item.max(), df.item.nunique())
     
     return ds, df, cfg
 
-def _split_index_by_leave_one_out(grouped_index, leave_one_num):
+def _split_index_by_leave_one_out(grouped_index, leave_one_num, item_interaction_count, df):
     """Split indexes by strategy leave one out.
 
     Args:
@@ -108,21 +113,37 @@ def _split_index_by_leave_one_out(grouped_index, leave_one_num):
     Returns:
         list: List of index that has been split.
     """
+    # TODO: handle leave_one_num > 1 case
+    item_interaction_count = item_interaction_count.copy()
     next_index = [[] for _ in range(leave_one_num + 1)]
     for index in grouped_index:
         index = list(index)
         tot_cnt = len(index)
+        assert tot_cnt > 4
         legal_leave_one_num = min(leave_one_num, tot_cnt - 1)
-        pr = tot_cnt - legal_leave_one_num
-        next_index[0].extend(index[:pr])
+        # pr = tot_cnt - legal_leave_one_num
+        pr = tot_cnt - 1
+        single_interaction_item = []
         for i in range(legal_leave_one_num):
-            next_index[-legal_leave_one_num + i].append(index[pr])
-            pr += 1
+            inter_id = index[pr]
+            item_id = int(df.iloc[inter_id]['item'])
+            while item_interaction_count[item_id] <= 1:
+                single_interaction_item.append(inter_id)
+                pr -= 1
+                inter_id = index[pr]
+                item_id = int(df.iloc[inter_id]['item'])
+            item_interaction_count[item_id] -= 1
+            next_index[-legal_leave_one_num + i].append(inter_id)
+            pr -= 1
+
+        next_index[0].extend(index[:pr + 1])
+        next_index[0].extend(single_interaction_item)
+    assert len(next_index[1]) > 0 and len(set(next_index[0]).intersection(next_index[1])) == 0
     return next_index
 
 def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
     ds, df, cfg = get_df_from_recbole(DATA_ROOT, dataset_name=dataset_name)
-    item_pool, pos_item_dict, user_interaction_count = get_neg_items(df)
+    item_pool, pos_item_dict, user_interaction_count, item_interaction_count = get_neg_items(df)
     
     index = {}
     for i, key in enumerate(df['user'].values):
@@ -133,7 +154,7 @@ def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
     grouped_inter_feat_index = index.values()
 
     next_index = _split_index_by_leave_one_out(
-        grouped_inter_feat_index, leave_one_num=1
+        grouped_inter_feat_index, leave_one_num=1, item_interaction_count=item_interaction_count, df=df
     )
 
     train_df = df.iloc[next_index[0]]
@@ -150,7 +171,7 @@ def gen_ds(dataset_name='lastfm', test_num_negatives=99, seed=42):
         neg_items = random.sample(user_neg_item_dict, test_num_negatives)
         assert len(neg_items) == test_num_negatives
         test_data.append([u, pos_item, neg_items])
-        
+    
     return train_df, test_data, cfg
 
 def gen_movielen_files(root, train, prefix='ml-1m'):
@@ -184,22 +205,40 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
         test_df = pd.DataFrame(data=test_data, columns=['user', 'pos_item', 'neg_sample'])
         return test_df
 
-DATA_ROOT = '../data'
-train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
-test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+
+DATA_ROOT = '../dataset'
+dataset_name = 'lastfm'
+
+if dataset_name == 'amz_ins':
+    train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
+    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+elif dataset_name == 'lastfm':
+    train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
+    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+elif dataset_name == '4sq-ny':
+    train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
+    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+
+print(train_df.item.max(), train_df.item.nunique())
+# print(test_df.item.max(), test_df.pos_item.nunique())
+
+print(set(range(train_df.item.max() + 1)) - set(train_df.item.unique()))
+
+
 # DATA_ROOT = Path('../data/Data')
 
 
 # train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
 # test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
 # data_path = cfg['data_path']
-data_path = Path("../dataset/amz_ins")
+
+data_path = Path(f"../dataset/{dataset_name}")
 if not data_path.exists():
     data_path.mkdir(parents=True)
 train_df.to_csv(data_path / "train.csv", index=False)
 test_df.to_csv(data_path / "test.csv", index=False)
 
-# print(train_df.info())
-# print(train_df.head())
-# print(test_df.info())
-# print(test_df.head())
+print(train_df.info())
+print(train_df.head())
+print(test_df.info())
+print(test_df.head())

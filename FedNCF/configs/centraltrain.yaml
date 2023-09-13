@@ -1,0 +1,46 @@
+# @package _global_
+defaults:
+  - _self_
+  - data: ml-1m.yaml
+  - net: fedmf16.yaml
+  - compression: none.yaml
+  - paths: default.yaml
+  - hydra: default.yaml
+
+# FED:
+#   num_clients: 120
+#   agg_epochs: 400
+#   local_epochs: 2
+#   compression_kwargs:
+#     method: 'none'
+
+DATA:
+  root: '../data/Data'
+  name: 'movielens'
+  num_negatives: 4
+  test_num_ng: 99
+
+DATALOADER:
+  batch_size: 256
+  shuffle: True
+  num_workers: 0
+
+TRAIN:
+  num_epochs: 10
+  lr: 1e-2
+  weight_decay: None
+  lr_scheduler: None
+  device: 'cuda'
+  wandb: False
+
+EVAL:
+  topk: 10
+  interval: 1
+
+EXP:
+  seed: 42
+
+
+task_name: centraltrain
+run_name: ${DATA.name}
+# ${now:%Y-%m-%d}_${now:%H-%M-%S}
