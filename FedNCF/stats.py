@@ -67,11 +67,12 @@ class Logger():
             self.run = self.init_wandb(cfg, model)
         self.hist = []
 
-    def log(self, log_dict):
+    def log(self, log_dict, term_out=True):
         if self.wandb:
             wandb.log(log_dict)
         self.hist.append(log_dict)
-        logging.info(log_dict)
+        if term_out:
+            logging.info(log_dict)
         
     def finish(self, **kwargs):
         if self.wandb:

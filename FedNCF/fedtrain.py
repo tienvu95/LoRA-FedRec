@@ -31,7 +31,7 @@ def run_server(
     feddm.setup()
     num_items = feddm.num_items
     num_users = feddm.num_users
-    all_train_loader = feddm.train_dataloader()
+    all_train_loader = feddm.train_dataloader(for_eval=True)
     test_loader = feddm.test_dataloader()
     logging.info("Num users: %d" % num_users)
     logging.info("Num items: %d" % num_items)
