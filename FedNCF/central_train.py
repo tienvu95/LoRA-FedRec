@@ -51,17 +51,19 @@ def main(cfg):
 
     global_step = 0
     mylogger = Logger(cfg, model, wandb=cfg.TRAIN.wandb)
+    timestat = TimeStats()
 
     pbar = tqdm(range(cfg.TRAIN.num_epochs))
     
     user_set = list(range(num_users))
-    user_set = random.shuffle(user_set)
+    random.shuffle(user_set)
 
     for epoch in pbar:
         total_loss = 0
         count = 0
         for i in user_set:
-            train_loader = feddm.train_dataloader(cid=[i])
+            with timestat.timer("prepare data"):
+                train_loader = feddm.train_dataloader(cid=[i])
             model.train()	
             log_dict = {"epoch": epoch}
             training_step_pbar = tqdm(train_loader, leave=False, disable=True)
@@ -90,5 +92,7 @@ def main(cfg):
         pbar.set_postfix(metrics)
         log_dict.update(metrics)
         mylogger.log(log_dict, term_out=True)
+        timestat.reset()
+        print(timestat._time_dict)
         
 main()

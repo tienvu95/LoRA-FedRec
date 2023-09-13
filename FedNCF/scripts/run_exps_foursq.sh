@@ -19,9 +19,12 @@
 # CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=4 task_name=debug TRAIN.lr=3e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
 
 
-CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
-CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=4 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
-CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=8 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
-# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=16 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
-CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16 compression=svd
-CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=7e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16 compression=svd FED.compression_kwargrs.rank=8
+CUDA_VISIBLE_DEVICES=1 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=4 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=8 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32 compression=svd
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=64 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32 compression=svd FED.compression_kwargs.rank=8
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=4 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf net.init.gmf_emb_size=8 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=32
+
+# CUDA_VISIBLE_DEVICES=2 python fedtrain.py data=4sq-ny net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=16 task_name=fedsweep TRAIN.wandb=True TRAIN.lr=5e-3 FED.agg_epochs=1000 EVAL.interval=10 DATALOADER.batch_size=16
