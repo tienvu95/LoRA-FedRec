@@ -47,9 +47,9 @@ class RecDataModule():
         self.test_data = []
         for index, row in self.test_df.iterrows():
             u = row['user']
-            self.test_data.append((u, row['pos_item'], 1.0))
             for i in row['neg_sample']:
                 self.test_data.append((u, i, 0.0))
+            self.test_data.append((u, row['pos_item'], 1.0))
         self.test_data = np.array(self.test_data)
 
         self.item_pool = tuple(self.item_pool)

@@ -27,8 +27,6 @@ def cal_loss(model, train_loader, loss_function, device='cpu'):
 	return np.mean(losses).item()
 
 def metrics(model, test_loader, top_k, device='cpu', num_negatives=99):
-	HR, NDCG = [], []
-
 	preds = []
 	for user, item, label in tqdm(test_loader, leave=False):
 		user = user.to(device)
@@ -39,9 +37,10 @@ def metrics(model, test_loader, top_k, device='cpu', num_negatives=99):
 	preds = torch.cat(preds, dim=0)
 	preds = preds.view(-1, num_negatives + 1)
 	_, topk_indices = torch.topk(preds, top_k, dim=-1)
-	_tmp = topk_indices == 0
+	_tmp = topk_indices == num_negatives
 	HR = torch.any(_tmp, dim=-1).float().mean().item()
 	_tmp = torch.argwhere(_tmp)[:, 1]
+	assert _tmp.shape[0] <= preds.shape[0], str(_tmp.shape) + " " + str(preds.shape)
 	NDCG = (torch.sum(torch.reciprocal(torch.log2(_tmp.float() + 2))) / preds.shape[0]).item()
 	# _, indices = torch.topk(predictions, top_k)
 	# recommends = torch.take(
