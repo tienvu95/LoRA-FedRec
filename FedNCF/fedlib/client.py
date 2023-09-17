@@ -13,13 +13,14 @@ class Client:
         self,
         cid,
         model: FedNCFModel,
-        datamodule
+        datamodule,
+        loss_fn
     ) -> None:
         self._cid = cid
         self.datamodule = datamodule
         self._model = model
         self._private_params = self._model._get_splited_params()[0]
-        self.loss_fn = torch.nn.BCEWithLogitsLoss()
+        self.loss_fn = loss_fn
 
     @property
     def cid(self):
@@ -34,36 +35,48 @@ class Client:
         self._model._set_state_from_splited_params([self._private_params, global_params])
 
     def fit(
-        self, server_params: TransferedParams, config: Dict[str, str], device, stats_logger: TimeStats
+        self, 
+        server_params: TransferedParams, 
+        local_epochs: int,
+        config: Dict[str, str], 
+        device, 
+        stats_logger: TimeStats,
+        **forward_kwargs
     ) -> Tuple[TransferedParams, int, Dict]:
         # Preparing train dataloader
         train_loader = self.datamodule.train_dataloader([self.cid])
 
         # Set model parameters, train model, return updated model parameters
         with torch.no_grad():
-            with stats_logger.timer('set_parameters'):
-                self.set_parameters(server_params)
+            if server_params is not None:
+                with stats_logger.timer('set_parameters'):
+                    self.set_parameters(server_params)
             # param_groups = self._model._get_splited_params_for_optim()
             # optimizer = torch.optim.Adam([{'params': list(param_groups[0].values()),},
             #                               {'params': list(param_groups[1].values()), 'lr': config.TRAIN.lr*train_loader.batch_size}, ], lr=config.TRAIN.lr)
+        if config.TRAIN.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
+        elif config.TRAIN.optimizer == 'adam':
             optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
-            # optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr)
+
 
         with stats_logger.timer('fit'):
-            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=config.FED.local_epochs, device=device)
+            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=local_epochs, device=device, **forward_kwargs)
         
         with torch.no_grad():
             with stats_logger.timer('get_parameters'):
                 sharable_params = self.get_parameters(None, server_params)
-                update = sharable_params.diff(server_params)
+                update = None
+                if server_params is not None:
+                    update = sharable_params.diff(server_params)
 
-            with stats_logger.timer('compress'):
-                update.compress(**config.FED.compression_kwargs)
+                    with stats_logger.timer('compress'):
+                        update.compress(**config.FED.compression_kwargs)
 
         # timestats.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics
     
-    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device):
+    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, **forward_kwargs):
         self._model.train() # Enable dropout (if have).
         loss_hist = []
         for e in range(num_epochs):
@@ -75,27 +88,13 @@ class Client:
                 label = label.float().to(device)
 
                 optimizer.zero_grad()
-                prediction = self._model(user, item)
+                prediction = self._model(user, item, **forward_kwargs)
                 loss = loss_fn(prediction, label)
                 loss.backward()
-                # tmp = self._model.embed_item_GMF.lora_A.detach().clone()
-                # print(self._model.embed_user_GMF.weight.grad.data)
-                # tmp = self._model.embed_item_GMF.lora_A.grad.data
-                # print("lora_A grad", torch.norm(tmp))
-                # grad_gmf_A = self._model.embed_item_GMF.lora_A.grad.data.detach().clone()
-                # grad_gmf_B = self._model.embed_item_GMF.lora_B.grad
-                # print(grad_gmf_B, self._model.embed_item_MLP.lora_B.grad)
-                # print("gmf", grad_gmf_A.sum().item(), grad_gmf_B.norm().item())
-
-                # self._model.embed_item_GMF.lora_B.grad.data.zero_()
-                # self._model.embed_item_MLP.lora_B.grad.data.zero_()
-
                 optimizer.step()
-                # print(torch.linalg.norm(self._model.embed_user_GMF.weight.detach().cpu() - torch.tensor(self._private_params['weights'][0])))
-                # print("Lora B grad", torch.norm(tmp))
 
-                count_example += label.shape[0]
-                total_loss += loss.item()* label.shape[0]
+                count_example += 1
+                total_loss += loss.item()
             total_loss /= count_example
             loss_hist.append(total_loss)
         return {

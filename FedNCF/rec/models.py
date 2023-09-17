@@ -1,3 +1,4 @@
+from math import sqrt
 import torch
 from collections import OrderedDict
 
@@ -19,8 +20,21 @@ class MF(nn.Module):
 
     def _init_weight_(self):
         """ We leave the weights initialization here. """
-        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
-        nn.init.normal_(self.embed_item_GMF.weight, std=0.01)
+        d = self.embed_user_GMF.weight.shape[1]
+        std = torch.sqrt(torch.tensor(2.0 / d))
+        # std=2/sqrt(d)
+        # std = 1 / sqrt(d)
+        # std = 0.01
+        nn.init.normal_(self.embed_user_GMF.weight, std=std)
+        nn.init.normal_(self.embed_item_GMF.weight, std=std)
+
+        # nn.init.zeros_(self.embed_user_GMF.weight)
+        # nn.init.zeros_(self.embed_item_GMF.weight)
+
+        # with torch.no_grad():
+        #     self.embed_user_GMF.weight.data += 0.01
+        #     self.embed_item_GMF.weight.data += 0.01
+        #     print(torch.mean(self.embed_user_GMF.weight @ self.embed_item_GMF.weight.t()))
 
     def _gmf_forward(self, user, item):
         embed_user_GMF = self.embed_user_GMF(user)

@@ -43,9 +43,11 @@ def run_server(
     
     model.to(cfg.TRAIN.device)
 
+    loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
+
     logging.info("Init clients")
     client_sampler = ClientSampler(feddm.num_users)
-    client_sampler.initialize_clients(model, feddm, shuffle_seed=42)
+    client_sampler.initialize_clients(model, feddm, loss_fn=loss_fn, shuffle_seed=42)
     logging.info("Init server")
     server = fedlib.server.SimpleServer(cfg, model, client_sampler)
 

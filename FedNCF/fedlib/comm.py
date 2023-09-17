@@ -10,7 +10,7 @@ class ClientSampler:
         self._round_count = 0
         self._client_count = 0
     
-    def initialize_clients(self, model, dm, shuffle_seed) -> None:
+    def initialize_clients(self, model, dm, loss_fn, shuffle_seed, reinit=True) -> None:
         """
         creates `Client` instance for each `client_id` in dataset
         :param cfg: configuration dict
@@ -18,8 +18,9 @@ class ClientSampler:
         """
         clients = list()
         for client_id in range(self.num_users):
-            c = Client(client_id, model=model, datamodule=dm)
-            model._reinit_private_params()
+            c = Client(client_id, model=model, datamodule=dm, loss_fn=loss_fn)
+            if reinit:
+                model._reinit_private_params()
             clients.append(c)
         self._client_set = clients
         self._suffle_client_set(shuffle_seed)
@@ -38,14 +39,21 @@ class ClientSampler:
         return sample
 
 class AvgAggregator:
-    def __init__(self, sample_params: TransferedParams) -> None:
+    def __init__(self, sample_params: TransferedParams, strategy='fedavg') -> None:
        self.aggregated_params = sample_params.zero_likes()
        self.count = 0
+       self.strategy = strategy
         
     def collect(self, params: TransferedParams, weight=1):
-       params.decompress()
-       self.aggregated_params = self.aggregated_params.add_(params, alpha=weight)
-       self.count += weight
-    
+        params.decompress()
+        if self.strategy == 'fedavg':
+            self.aggregated_params = self.aggregated_params.add_(params, alpha=weight)
+            self.count += weight
+        elif self.strategy == 'simpleavg':
+            self.aggregated_params = self.aggregated_params.add_(params)
+            self.count += 1
+        else:
+            raise NotImplementedError(f'Aggregation strategy {self.strategy} not implemented')
+
     def finallize(self):
         return self.aggregated_params.div_scalar_(self.count)

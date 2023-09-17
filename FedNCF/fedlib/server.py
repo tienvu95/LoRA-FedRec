@@ -33,7 +33,7 @@ class SimpleServer:
     def train_round(self, epoch_idx: int = 0):
         self.prepare()
         participants = self.client_sampler.next_round(self.cfg.FED.num_clients)
-        aggregator = AvgAggregator(self.server_params)
+        aggregator = AvgAggregator(self.server_params, strategy=self.cfg.FED.aggregation)
         total_loss = 0
 
         if epoch_idx > 0:
@@ -47,7 +47,12 @@ class SimpleServer:
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
         # update_norm = 0
         for client in pbar:
-            update, data_size, metrics = client.fit(self.server_params, self.cfg, self.cfg.TRAIN.device, self._timestats)
+            update, data_size, metrics = client.fit(self.server_params, 
+                                                    local_epochs=self.cfg.FED.local_epochs, 
+                                                    config=self.cfg, 
+                                                    device=self.cfg.TRAIN.device, 
+                                                    stats_logger=self._timestats,
+                                                    mask_zero_user_index=True)
             # update_norm += torch.linalg.norm((update['embed_item_GMF.lora_A'] @ update['embed_item_GMF.lora_B'])*update["embed_item_GMF.lora_scaling"]).item()
             # update_norm += torch.linalg.norm(update['embed_item_GMF.weight']).item()
             update_numel += sum([t.numel() for t in update.values()])

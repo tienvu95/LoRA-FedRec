@@ -13,6 +13,7 @@ FED:
   local_epochs: 2
   compression_kwargs:
     method: 'none'
+  aggregation: 'fedavg'
 
 DATA:
   root: '../data/Data'
@@ -26,6 +27,7 @@ DATALOADER:
   num_workers: 0
 
 TRAIN:
+  optimizer: sgd
   lr: 1e-2
   weight_decay: 0
   lr_scheduler: None
