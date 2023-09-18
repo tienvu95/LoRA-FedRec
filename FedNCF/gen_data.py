@@ -124,14 +124,21 @@ def _split_index_by_leave_one_out(grouped_index, leave_one_num, item_interaction
         # pr = tot_cnt - legal_leave_one_num
         pr = tot_cnt - 1
         single_interaction_item = []
+        skip_user = False
         for i in range(legal_leave_one_num):
             inter_id = index[pr]
             item_id = int(df.iloc[inter_id]['item'])
             while item_interaction_count[item_id] <= 1:
                 single_interaction_item.append(inter_id)
                 pr -= 1
+                if pr < 0:
+                    skip_user = True
+                    break
                 inter_id = index[pr]
                 item_id = int(df.iloc[inter_id]['item'])
+            if skip_user:
+                print("Skip user")
+                break
             item_interaction_count[item_id] -= 1
             next_index[-legal_leave_one_num + i].append(inter_id)
             pr -= 1
@@ -206,8 +213,8 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
         return test_df
 
 
-DATA_ROOT = '../dataset'
-dataset_name = 'lastfm'
+DATA_ROOT = '../data'
+dataset_name = 'amz_ins'
 
 if dataset_name == 'amz_ins':
     train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
@@ -216,7 +223,7 @@ elif dataset_name == 'lastfm':
     train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
     test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
 elif dataset_name == '4sq-ny':
-    train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
+    train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
     test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
 
 print(train_df.item.max(), train_df.item.nunique())
