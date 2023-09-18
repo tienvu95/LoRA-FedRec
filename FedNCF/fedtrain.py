@@ -46,7 +46,7 @@ def run_server(
     loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
 
     logging.info("Init clients")
-    client_sampler = ClientSampler(feddm.num_users)
+    client_sampler = ClientSampler(feddm.num_users, n_workers=4)
     client_sampler.initialize_clients(model, feddm, loss_fn=loss_fn, shuffle_seed=42)
     logging.info("Init server")
     server = fedlib.server.SimpleServer(cfg, model, client_sampler)
@@ -63,6 +63,7 @@ def run_server(
         mylogger.log(log_dict)
         logging.info(server._timestats._pca_vars)
         server._timestats.reset()
+    client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
     return hist_df, pca_var_df

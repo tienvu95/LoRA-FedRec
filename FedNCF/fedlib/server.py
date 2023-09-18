@@ -14,7 +14,8 @@ class SimpleServer:
     def __init__(self, cfg, model, client_sampler: ClientSampler):
         self.cfg = cfg
         self.client_sampler = client_sampler
-        
+        self.client_sampler.prepare_dataloader(n_clients_per_round=self.cfg.FED.num_clients*2)
+
         self.model = model
         # self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
         
@@ -32,7 +33,7 @@ class SimpleServer:
 
     def train_round(self, epoch_idx: int = 0):
         self.prepare()
-        participants = self.client_sampler.next_round(self.cfg.FED.num_clients)
+        participants, all_data_size = self.client_sampler.next_round(self.cfg.FED.num_clients)
         aggregator = AvgAggregator(self.server_params, strategy=self.cfg.FED.aggregation)
         total_loss = 0
 
@@ -43,9 +44,15 @@ class SimpleServer:
         self._timestats.set_aggregation_epoch(epoch_idx)
         pbar = tqdm.tqdm(participants, desc='Training')
         update_numel = 0
-        all_data_size = 0
+        # all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
         # update_norm = 0
+        # with self._timestats.timer("prepare dataloader"):
+        #     # for client in participants:
+        #     #     ds_size = client.prepare_dataloader(None, self._timestats)
+        #     #     all_data_size += ds_size
+        #     all_data_size = self.client_sampler.prepare_dataloader(participants)
+
         for client in pbar:
             update, data_size, metrics = client.fit(self.server_params, 
                                                     local_epochs=self.cfg.FED.local_epochs, 
@@ -56,12 +63,11 @@ class SimpleServer:
             # update_norm += torch.linalg.norm((update['embed_item_GMF.lora_A'] @ update['embed_item_GMF.lora_B'])*update["embed_item_GMF.lora_scaling"]).item()
             # update_norm += torch.linalg.norm(update['embed_item_GMF.weight']).item()
             update_numel += sum([t.numel() for t in update.values()])
-            aggregator.collect(update, weight=data_size)
+            aggregator.collect(update, weight=(data_size/all_data_size))
             
             client_loss = np.mean(metrics['loss'])
             log_dict = {"client_loss": client_loss}
             total_loss += client_loss
-            all_data_size += data_size
             pbar.set_postfix(log_dict)
         aggregated_update = aggregator.finallize()
         self._step_server_optim(aggregated_update)

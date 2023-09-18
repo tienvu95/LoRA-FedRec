@@ -33,6 +33,16 @@ class Client:
 
     def set_parameters(self, global_params: List[np.ndarray]) -> None:
         self._model._set_state_from_splited_params([self._private_params, global_params])
+    
+    
+    def prepare_dataloader_mp(self, config):
+        # print(f'*Preparing client {self.cid}')
+        train_loader = self.datamodule.train_dataloader([self.cid])
+        return train_loader
+    
+    def prepare_dataloader(self, config):
+        self.train_loader = self.datamodule.train_dataloader([self.cid])
+        return len(self.train_loader.dataset)
 
     def fit(
         self, 
@@ -44,7 +54,11 @@ class Client:
         **forward_kwargs
     ) -> Tuple[TransferedParams, int, Dict]:
         # Preparing train dataloader
-        train_loader = self.datamodule.train_dataloader([self.cid])
+        try:
+            train_loader = self.train_loader
+        except AttributeError as e:
+            print("Please call prepare_dataloader() first. CID: %d" % self._cid)
+            raise e
 
         # Set model parameters, train model, return updated model parameters
         with torch.no_grad():
