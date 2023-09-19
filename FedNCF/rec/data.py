@@ -131,6 +131,9 @@ def get_datamodule(cfg):
     elif cfg.DATA.name == "foursq-ny":
         root = cfg.DATA.root + "/4sq-ny"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "book-crossing":
+        root = cfg.DATA.root + "/book-crossing"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     else:
         raise ValueError
     return dm

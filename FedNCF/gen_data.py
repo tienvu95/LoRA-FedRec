@@ -70,6 +70,21 @@ def get_recbole_cfg(data_root, dataset_name):
         cfg['data_path']= data_root + '/foursquare_NYC'
         cfg["eval_args"]["order"] = 'TO' # Time order
         # cfg["eval_args"]["order"] = 'RO'
+    elif dataset_name == 'book-crossing':
+        cfg = Config(model="BPR", dataset='book-crossing', 
+                config_dict={'ITEM_ID_FIELD': 'item_id', 
+                            'LABEL_FIELD': 'label', 
+                            'NEG_PREFIX': 'neg_',
+                            'USER_ID_FIELD': 'user_id',
+                            'field_separator': '\t',
+                            'load_col': {'inter': ['user_id', 'item_id']},
+                            'seq_separator': ' '} )
+        cfg["eval_args"]["split"] = {'LS': 'test_only'}
+        cfg["user_inter_num_interval"] = '[5,inf]'
+        cfg["item_inter_num_interval"] = '[1,inf]'
+        cfg['data_path']= data_root + '/book-crossing'
+        cfg["eval_args"]["order"] = 'TO' # Time order
+        # cfg["eval_args"]["order"] = 'RO'
     return cfg
 
 def get_df_from_recbole(data_root, dataset_name):
@@ -82,7 +97,8 @@ def get_df_from_recbole(data_root, dataset_name):
         df = df.sample(frac=1).reset_index(drop=True)
     elif ordering_args == "TO":
         time_field = cfg["TIME_FIELD"]
-        df.sort_values(by=time_field, ascending=True, inplace=True)
+        if time_field in df.columns:
+            df.sort_values(by=time_field, ascending=True, inplace=True)
     else:
         raise NotImplementedError(
             f"The ordering_method [{ordering_args}] has not been implemented."
@@ -214,7 +230,7 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
 
 
 DATA_ROOT = '../data'
-dataset_name = 'amz_ins'
+dataset_name = 'book-crossing'
 
 if dataset_name == 'amz_ins':
     train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
@@ -224,6 +240,9 @@ elif dataset_name == 'lastfm':
     test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
 elif dataset_name == '4sq-ny':
     train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
+    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+elif dataset_name == 'book-crossing':
+    train_df, test_data, cfg = gen_ds(dataset_name='book-crossing')
     test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
 
 print(train_df.item.max(), train_df.item.nunique())
