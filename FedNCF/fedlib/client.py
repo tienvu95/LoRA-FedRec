@@ -14,12 +14,14 @@ class Client:
         cid,
         model: FedNCFModel,
         datamodule,
-        loss_fn
+        loss_fn,
+        central_train=False,
     ) -> None:
         self._cid = cid
         self.datamodule = datamodule
         self._model = model
-        self._private_params = self._model._get_splited_params()[0]
+        if not central_train:
+            self._private_params = self._model._get_splited_params()[0]
         self.loss_fn = loss_fn
 
     @property

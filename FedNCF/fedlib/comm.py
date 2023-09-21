@@ -33,7 +33,7 @@ class ClientSampler:
         self._client_count = 0
         self._n_workers = n_workers
     
-    def initialize_clients(self, model, dm, loss_fn, shuffle_seed, reinit=True) -> None:
+    def initialize_clients(self, model, dm, loss_fn, shuffle_seed, reinit=True, central_train=False) -> None:
         """
         creates `Client` instance for each `client_id` in dataset
         :param cfg: configuration dict
@@ -41,7 +41,7 @@ class ClientSampler:
         """
         clients = list()
         for client_id in range(self.num_users):
-            c = Client(client_id, model=model, datamodule=dm, loss_fn=loss_fn)
+            c = Client(client_id, model=model, datamodule=dm, loss_fn=loss_fn, central_train=central_train)
             if reinit:
                 model._reinit_private_params()
             clients.append(c)

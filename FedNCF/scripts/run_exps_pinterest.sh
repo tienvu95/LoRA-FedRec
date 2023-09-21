@@ -1,18 +1,17 @@
-# python server.py --config-file configs/ncf16.yaml  --opt TRAIN.device cpu 
-# python server.py --config-file configs/lora4_ncf16.yaml  --opt TRAIN.device cpu
-# python server.py --config-file configs/lora8_ncf16.yaml  --opt TRAIN.device cpu DATALOADER.batch_size 128 TRAIN.lr 0.005
-# python server.py --config-file configs/lora2_ncf16.yaml  --opt TRAIN.device cpu DATALOADER.batch_size 128 TRAIN.lr 0.005
-# python server.py --config-file configs/lora4_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.003
-# python server.py --config-file configs/lora8_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.003
-# python server.py --config-file configs/lora2_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.003
-# python server.py --config-file configs/pinterest/lora4_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.01 FED.num_clients 200
-# CUDA_VISIBLE_DEVICES=1 python server.py --config-file configs/pinterest/lora2_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.01 FED.num_clients 200
-# CUDA_VISIBLE_DEVICES=1 python server.py --config-file configs/pinterest/lora8_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.01 FED.num_clients 200
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=5e-2 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=3e-1 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
 
-# CUDA_VISIBLE_DEVICES=1 python server.py --config-file configs/pinterest/lora2_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.01 FED.num_clients 200
-# CUDA_VISIBLE_DEVICES=1 python server.py --config-file configs/pinterest/lora8_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 128 TRAIN.lr 0.01 FED.num_clients 200
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.aggregation=simpleavg
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=5e-2 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.aggregation=simpleavg
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=3e-1 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.aggregation=simpleavg
 
-CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/pinterest/ncf16.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 1000
-CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/pinterest/lora4_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 1000
-CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/pinterest/lora2_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 1000
-CUDA_VISIBLE_DEVICES=2 python server.py --config-file configs/pinterest/lora8_ncf16_freezeB.yaml  --opt TRAIN.device cuda DATALOADER.batch_size 256 TRAIN.lr 0.003 FED.num_clients 1000
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.local_epochs=4
+
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=5e-2 FED.agg_epochs=1000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=5e-2 FED.agg_epochs=1000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.local_epochs=4
+
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=3e-1 FED.agg_epochs=1000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
+# python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=True TRAIN.lr=3e-1 FED.agg_epochs=1000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.local_epochs=4
+
+python fedtrain.py data=pinterest net=fedmf task_name=fedtrain4 TRAIN.wandb=False TRAIN.lr=1e-1 FED.agg_epochs=550000 EVAL.interval=275000 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4 FED.num_clients=2 FED.aggregation=simpleavg

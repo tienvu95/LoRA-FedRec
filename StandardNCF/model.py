@@ -110,3 +110,44 @@ class NCF(nn.Module):
 
 		prediction = self.predict_layer(concat)
 		return prediction.view(-1)
+
+
+class MF(nn.Module):
+    def __init__(self, user_num, item_num, gmf_emb_size=16, ItemEmbedding=nn.Embedding):
+        super(MF, self).__init__()
+        """
+        user_num: number of users;
+        item_num: number of items;
+        """		
+
+        self.embed_user_GMF = nn.Embedding(user_num, gmf_emb_size)
+        self.embed_item_GMF = ItemEmbedding(item_num, gmf_emb_size)
+        self._init_weight_()
+
+    def _init_weight_(self):
+        """ We leave the weights initialization here. """
+        d = self.embed_user_GMF.weight.shape[1]
+        std = torch.sqrt(torch.tensor(2.0 / d))
+        # std=2/sqrt(d)
+        # std = 1 / sqrt(d)
+        # std = 0.01
+        nn.init.normal_(self.embed_user_GMF.weight, std=std)
+        nn.init.normal_(self.embed_item_GMF.weight, std=std)
+
+        # nn.init.zeros_(self.embed_user_GMF.weight)
+        # nn.init.zeros_(self.embed_item_GMF.weight)
+
+        # with torch.no_grad():
+        #     self.embed_user_GMF.weight.data += 0.01
+        #     self.embed_item_GMF.weight.data += 0.01
+        #     print(torch.mean(self.embed_user_GMF.weight @ self.embed_item_GMF.weight.t()))
+
+    def _gmf_forward(self, user, item):
+        embed_user_GMF = self.embed_user_GMF(user)
+        embed_item_GMF = self.embed_item_GMF(item)
+        return embed_user_GMF * embed_item_GMF
+
+    def forward(self, user, item, **kwargs):
+        output_GMF = self._gmf_forward(user, item)
+        prediction = output_GMF.sum(dim=-1)
+        return prediction.view(-1)

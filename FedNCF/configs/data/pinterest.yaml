@@ -8,6 +8,6 @@ DATA:
   name: 'pinterest'
 
 FED:
-  num_clients: 120
+  num_clients: 550
   agg_epochs: 400
   local_epochs: 2

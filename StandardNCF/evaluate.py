@@ -47,7 +47,7 @@ def metrics(model, test_loader, top_k, device='cpu', num_negatives=99):
 	preds = torch.cat(preds, dim=0)
 	preds = preds.view(-1, num_negatives + 1)
 	_, topk_indices = torch.topk(preds, top_k, dim=-1)
-	_tmp = topk_indices == 0
+	_tmp = (topk_indices == 99)
 	HR = torch.any(_tmp, dim=-1).float().mean().item()
 	_tmp = torch.argwhere(_tmp)[:, 1]
 	NDCG = (torch.sum(torch.reciprocal(torch.log2(_tmp.float() + 2))) / preds.shape[0]).item()
