@@ -244,6 +244,13 @@ elif dataset_name == '4sq-ny':
 elif dataset_name == 'book-crossing':
     train_df, test_data, cfg = gen_ds(dataset_name='book-crossing')
     test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+elif dataset_name == 'ml-1m':
+    train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='ml-1m')
+    test_df = gen_movielen_files(DATA_ROOT, train=False, prefix='ml-1m')
+elif dataset_name == 'pinterest':
+    train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
+    test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
+
 
 print(train_df.item.max(), train_df.item.nunique())
 # print(test_df.item.max(), test_df.pos_item.nunique())
