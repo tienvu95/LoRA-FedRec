@@ -14,7 +14,6 @@ class SimpleServer:
     def __init__(self, cfg, model, client_sampler: ClientSampler):
         self.cfg = cfg
         self.client_sampler = client_sampler
-        self.client_sampler.prepare_dataloader(n_clients_per_round=self.cfg.FED.num_clients*2)
 
         self.model = model
         # self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
@@ -33,7 +32,9 @@ class SimpleServer:
 
     def train_round(self, epoch_idx: int = 0):
         self.prepare()
-        participants, all_data_size = self.client_sampler.next_round(self.cfg.FED.num_clients)
+
+        with self._timestats.timer("sampling clients"):
+            participants, all_data_size = self.client_sampler.next_round(self.cfg.FED.num_clients)
         aggregator = AvgAggregator(self.server_params, strategy=self.cfg.FED.aggregation)
         total_loss = 0
 
@@ -42,7 +43,7 @@ class SimpleServer:
             self.server_params.decompress()
 
         self._timestats.set_aggregation_epoch(epoch_idx)
-        pbar = tqdm.tqdm(participants, desc='Training')
+        pbar = tqdm.tqdm(participants, desc='Training', disable=True)
         update_numel = 0
         # all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()

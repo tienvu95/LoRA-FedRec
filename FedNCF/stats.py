@@ -35,6 +35,7 @@ class TimeStats(object):
 
     @contextmanager
     def timer(self, flag_name):
+        # flag_name = 'time/' + flag_name
         self.flag_timestem[flag_name] = time.time()
         yield self.flag_timestem[flag_name]
         self._time_dict[flag_name] = self._time_dict.get(flag_name, 0) + time.time() - self.flag_timestem[flag_name]

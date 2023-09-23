@@ -33,6 +33,7 @@ TRAIN:
   lr_scheduler: None
   device: 'cuda'
   wandb: False
+  log_interval: 1
 
 EVAL:
   topk: 10

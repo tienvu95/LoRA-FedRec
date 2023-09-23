@@ -11,11 +11,12 @@ def _prepare_dataloader(participants, pid, n_workers, queue):
     step_size = n_workers
     n_participants = len(participants)
     while True:
-        client = participants[i % n_participants]
+        client_permuted_index = i % n_participants
+        client = participants[client_permuted_index]
         # print(f'Preparing client {client.cid}')
         train_loader = client.prepare_dataloader_mp(None)
         train_loader = pickle.dumps(train_loader)
-        queue.put(train_loader)
+        queue.put((client_permuted_index, client.cid, train_loader))
         del train_loader   # save memory
         i += step_size
 
@@ -31,7 +32,7 @@ class ClientSampler:
         self.num_users = num_users
         self._round_count = 0
         self._client_count = 0
-        self._n_workers = n_workers
+        self._n_workers = 1 # Currently only support 1 worker
     
     def initialize_clients(self, model, dm, loss_fn, shuffle_seed, reinit=True, central_train=False) -> None:
         """
@@ -62,11 +63,11 @@ class ClientSampler:
 
         total_ds_sizes = 0
         for i in range(len(participants)):
-            train_loader = self.queue.get()
+            client_permuted_index, cid, train_loader = self.queue.get()
+            assert participants[i].cid == cid
             train_loader = pickle.loads(train_loader)
             participants[i].train_loader = train_loader
             total_ds_sizes += len(train_loader.dataset)
-
         return participants, total_ds_sizes
 
     def prepare_dataloader(self, n_clients_per_round) -> None:

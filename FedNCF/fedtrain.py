@@ -46,22 +46,22 @@ def run_server(
     loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
 
     logging.info("Init clients")
-    client_sampler = ClientSampler(feddm.num_users, n_workers=4)
+    client_sampler = ClientSampler(feddm.num_users, n_workers=1)
     client_sampler.initialize_clients(model, feddm, loss_fn=loss_fn, shuffle_seed=42)
+    client_sampler.prepare_dataloader(n_clients_per_round=cfg.FED.num_clients*10)
+
     logging.info("Init server")
     server = fedlib.server.SimpleServer(cfg, model, client_sampler)
 
     for epoch in range(cfg.FED.agg_epochs):
         log_dict = {"epoch": epoch}
-        logging.info(f"Aggregation Epoch: {epoch}")
         log_dict.update(server.train_round(epoch_idx=epoch))
-        logging.info("Evaluate model")
         if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
             test_metrics = server.evaluate(test_loader, all_train_loader)
             log_dict.update(test_metrics)
         log_dict.update(server._timestats._time_dict)
-        mylogger.log(log_dict)
-        logging.info(server._timestats._pca_vars)
+        if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
+            mylogger.log(log_dict, term_out=True)
         server._timestats.reset()
     client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
