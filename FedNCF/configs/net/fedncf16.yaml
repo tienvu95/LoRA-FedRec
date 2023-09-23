@@ -4,4 +4,4 @@ init:
   mlp_emb_size: 64
   mlp_layer_dims: [128, 64, 32, 16]
   dropout: 0.0
-name: fedncf
+name: fedncf${net.init.gmf_emb_size}-${net.init.mlp_emb_size}

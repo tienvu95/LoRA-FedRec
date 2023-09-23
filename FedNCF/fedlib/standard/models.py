@@ -138,11 +138,14 @@ class FedNCFModel(NCF, FedParamSpliter):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
         nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
     
+    def server_prepare(self):
+        return
+    
     @classmethod
     def merge_client_params(cls, clients, server_params, model, device):
-        client_weights = [c._private_params['weights'] for c in clients]
+        client_weights = [c._private_params.values() for c in clients]
         client_weights = [torch.cat(w, dim=0).to(device) for w in zip(*client_weights)]
-        client_weights = {k: v for k,v in zip(clients[0]._private_params['keys'], client_weights)}
+        client_weights = {k: v for k,v in zip(clients[0]._private_params.keys(), client_weights)}
         eval_model = copy.deepcopy(model)
         eval_model._set_state_from_splited_params([clients[0]._private_params, server_params])
         eval_model.embed_user_GMF = torch.nn.Embedding.from_pretrained(client_weights['embed_user_GMF.weight'])
