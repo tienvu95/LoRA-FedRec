@@ -79,14 +79,21 @@ class SimpleServer:
 
     
     @torch.no_grad()
-    def evaluate(self, test_loader, train_loader=None):
+    def evaluate(self, val_loader, test_loader, train_loader=None):
         sorted_client_set = self.client_sampler.sorted_client_set
+        metrics = {}
         with self._timestats.timer("evaluate"):
             eval_model = self.model.merge_client_params(sorted_client_set, self.server_params, self.model, self.cfg.TRAIN.device)
             if train_loader is not None:
                 train_loss = evaluate.cal_loss(eval_model, train_loader, loss_function=torch.nn.BCEWithLogitsLoss(),device=self.cfg.TRAIN.device)
+                metrics['train/loss'] = train_loss
             eval_model.eval()
-            HR, NDCG = evaluate.metrics(eval_model, test_loader, self.cfg.EVAL.topk, device=self.cfg.TRAIN.device)
-        if train_loader is not None:
-            return {"HR": HR, "NDCG": NDCG, "train_loss": train_loss}
-        return {"HR": HR, "NDCG": NDCG}
+            if test_loader is not None:
+                HR, NDCG = evaluate.metrics(eval_model, test_loader, self.cfg.EVAL.topk, device=self.cfg.TRAIN.device)
+                metrics['test/HR'] = HR
+                metrics['test/NDCG'] = NDCG
+            if val_loader is not None:
+                HR_val, NDCG_val = evaluate.metrics(eval_model, val_loader, self.cfg.EVAL.topk, device=self.cfg.TRAIN.device)
+                metrics['val/HR'] = HR_val
+                metrics['val/NDCG'] = NDCG_val
+        return metrics

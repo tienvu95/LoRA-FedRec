@@ -60,19 +60,9 @@ def run_server(
     for epoch in range(cfg.FED.agg_epochs):
         log_dict = {"epoch": epoch}
         log_dict.update(server.train_round(epoch_idx=epoch))
-        if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
-            if val_loader is not None:
-                val_metrics = server.evaluate(val_loader, all_train_loader)
-                rename_val_metrics = {}
-                for k, v in val_metrics.items():
-                    rename_val_metrics['val/' + k] = v
-                log_dict.update(rename_val_metrics)
-                
-            test_metrics = server.evaluate(test_loader)
-            rename_test_metrics = {}
-            for k, v in test_metrics.items():
-                rename_test_metrics['test/' + k] = v
-            log_dict.update(rename_test_metrics)
+        if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):                
+            test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
+            log_dict.update(test_metrics)
 
         log_dict.update(server._timestats._time_dict)
         if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
