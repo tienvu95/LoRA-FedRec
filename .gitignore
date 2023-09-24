@@ -164,8 +164,8 @@ MF/sh_result
 /data
 /Federated-Recommendation-Neural-Collaborative-Filtering
 /federeco
-/FedNCF/exp
-/FedNCF/outputs
+exp/
+outputs/
 *.bk
 dataset/
 wandb/

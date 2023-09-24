@@ -2,7 +2,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import random
-from rec import data
 from recbole.data import dataset, create_dataset, data_preparation
 from recbole.config import Config
 
@@ -10,17 +9,23 @@ from recbole.config import Config
 def get_neg_items(rating_df: pd.DataFrame):
     """return all negative items & 100 sampled negative items"""
     item_pool = set(rating_df['item'].unique())
-    interactions = rating_df.groupby('user')['item'].apply(set).reset_index().rename(
-        columns={'item': 'pos_items'})
-    user_interaction_count = dict(zip(interactions['user'].values, interactions['pos_items'].apply(len).values.tolist()))
+
+    user_interactions_df = rating_df.groupby('user')['item'] \
+                            .apply(set) \
+                            .reset_index() \
+                            .rename(columns={'item': 'pos_items'})
     
-    item_interaction_df = rating_df.groupby('item')['user'].count().reset_index().rename({'user': 'count'}, axis=1)
+    user_interaction_count = zip(user_interactions_df['user'].values, 
+                                 user_interactions_df['pos_items'].apply(len).values.tolist())
+    user_interaction_count = dict(user_interaction_count)
+    
+    item_interaction_df = rating_df.groupby('item')['user'].apply(lambda x: len(set(x))).reset_index().rename({'user': 'count'}, axis=1)
     print(item_interaction_df)
     item_interaction_count = dict(zip(item_interaction_df['item'].values, item_interaction_df['count'].values.tolist()))
     
     # interactions['neg_items'] = interactions['pos_items'].apply(lambda x: (list(item_pool - x)))
     # print(4)
-    pos_item_dict = dict(zip(interactions['user'].values, interactions['pos_items'].values))
+    pos_item_dict = dict(zip(user_interactions_df['user'].values, user_interactions_df['pos_items'].values))
     print(5)
     return item_pool, pos_item_dict, user_interaction_count, item_interaction_count
 
@@ -132,7 +137,7 @@ def _split_index_by_leave_one_out(grouped_index, leave_one_num, item_interaction
     # TODO: handle leave_one_num > 1 case
     item_interaction_count = item_interaction_count.copy()
     next_index = [[] for _ in range(leave_one_num + 1)]
-    for index in grouped_index:
+    for uid, index in grouped_index.items():
         index = list(index)
         tot_cnt = len(index)
         assert tot_cnt > 4
@@ -203,16 +208,45 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
         "test_ratings": f"{prefix}.test.rating",
         "test_negative": f"{prefix}.test.negative",
     }
+
     if train: 
-        train_df = pd.read_csv(
+        df = pd.read_csv(
             root / file_names['train_ratings'], 
-            sep='\t', header=None, names=['user', 'item', 'rating'], 
-            usecols=[0, 1, 2], dtype={0: np.int32, 1: np.int32}
+            sep='\t', header=None, names=['user', 'item', 'rating', 'timestamp'], 
+            usecols=[0, 1, 2, 3], dtype={0: np.int32, 1: np.int32}
         )
+
         # print("Num 0 rating", len(train_df[train_df['rating'] == 0]))
-        train_df = train_df[train_df['rating'] > 0]
-        train_df['rating'] = 1.0
-        return train_df 
+        df = df[df['rating'] > 0]
+        df['rating'] = 1.0
+
+        # Sort data by timestamp
+        time_field = 'timestamp'
+        df.sort_values(by=time_field, ascending=True, inplace=True)
+        # df.sample(frac=1).reset_index(drop=True) # Random order
+        item_pool, pos_item_dict, user_interaction_count, item_interaction_count = get_neg_items(df)
+        
+        inter_id_groupby_users = df.groupby('user').indices
+        next_index = _split_index_by_leave_one_out(
+            inter_id_groupby_users, leave_one_num=1, item_interaction_count=item_interaction_count, df=df
+        )
+
+        train_df = df.iloc[next_index[0]]
+        train_df = train_df[['user', 'item', 'rating']].reset_index(drop=True)
+        
+        val_df = df.iloc[next_index[1]]
+        val_df = val_df[['user', 'item', 'rating']].reset_index(drop=True)
+        val_data = []
+        random.seed(42)
+        for index, row in val_df.iterrows():
+            u = int(row['user'])
+            pos_item = int(row['item'])
+            user_neg_item_dict = list(item_pool - set(pos_item_dict[u]))
+            neg_items = random.sample(user_neg_item_dict, 99)
+            assert len(neg_items) == 99
+            val_data.append([u, pos_item, neg_items])
+        val_df = pd.DataFrame(data=val_data, columns=("user", "pos_item", "neg_sample"))
+        return train_df, val_df
     else:
         test_data = []
         with open(root / file_names['test_negative'], 'r') as fd:
@@ -228,50 +262,53 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
         test_df = pd.DataFrame(data=test_data, columns=['user', 'pos_item', 'neg_sample'])
         return test_df
 
+if __name__ == "__main__":
+    DATA_ROOT = Path('./data/Data')
+    dataset_name = 'ml-1m'
 
-DATA_ROOT = '../data'
-dataset_name = 'book-crossing'
-
-if dataset_name == 'amz_ins':
-    train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
-    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-elif dataset_name == 'lastfm':
-    train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
-    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-elif dataset_name == '4sq-ny':
-    train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
-    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-elif dataset_name == 'book-crossing':
-    train_df, test_data, cfg = gen_ds(dataset_name='book-crossing')
-    test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
-elif dataset_name == 'ml-1m':
-    train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='ml-1m')
-    test_df = gen_movielen_files(DATA_ROOT, train=False, prefix='ml-1m')
-elif dataset_name == 'pinterest':
-    train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
-    test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
-
-
-print(train_df.item.max(), train_df.item.nunique())
-# print(test_df.item.max(), test_df.pos_item.nunique())
-
-print(set(range(train_df.item.max() + 1)) - set(train_df.item.unique()))
+    if dataset_name == 'amz_ins':
+        train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
+        test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+    elif dataset_name == 'lastfm':
+        train_df, test_data, cfg = gen_ds(dataset_name='lastfm')
+        test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+    elif dataset_name == '4sq-ny':
+        train_df, test_data, cfg = gen_ds(dataset_name='4sq-ny')
+        test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+    elif dataset_name == 'book-crossing':
+        train_df, test_data, cfg = gen_ds(dataset_name='book-crossing')
+        test_df = pd.DataFrame(data=test_data, columns=("user", "pos_item", "neg_sample"))
+    elif dataset_name == 'ml-1m':
+        train_df, val_df = gen_movielen_files(DATA_ROOT, train=True, prefix='ml-1m')
+        test_df = gen_movielen_files(DATA_ROOT, train=False, prefix='ml-1m')
+    elif dataset_name == 'pinterest':
+        train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
+        test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
 
 
-# DATA_ROOT = Path('../data/Data')
+    print(train_df.item.max(), train_df.item.nunique())
+    # print(test_df.item.max(), test_df.pos_item.nunique())
+
+    print(set(range(train_df.item.max() + 1)) - set(train_df.item.unique()))
 
 
-# train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
-# test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
-# data_path = cfg['data_path']
+    # DATA_ROOT = Path('../data/Data')
 
-data_path = Path(f"../dataset/{dataset_name}")
-if not data_path.exists():
-    data_path.mkdir(parents=True)
-train_df.to_csv(data_path / "train.csv", index=False)
-test_df.to_csv(data_path / "test.csv", index=False)
 
-print(train_df.info())
-print(train_df.head())
-print(test_df.info())
-print(test_df.head())
+    # train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
+    # test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
+    # data_path = cfg['data_path']
+
+    data_path = Path(f"./dataset/{dataset_name}-v2")
+    if not data_path.exists():
+        data_path.mkdir(parents=True)
+    train_df.to_csv(data_path / "train.csv", index=False)
+    val_df.to_csv(data_path / "val.csv", index=False)
+    test_df.to_csv(data_path / "test.csv", index=False)
+
+    print(train_df.info())
+    print(train_df.head())
+    print(val_df.info())
+    print(val_df.head())
+    print(test_df.info())
+    print(test_df.head())

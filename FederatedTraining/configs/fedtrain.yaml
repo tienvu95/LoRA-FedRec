@@ -41,6 +41,7 @@ EVAL:
 
 EXP:
   seed: 42
+  project: 'lora-fedrec-3'
 
 
 task_name: fedtrain

@@ -32,7 +32,10 @@ def run_server(
     num_items = feddm.num_items
     num_users = feddm.num_users
     all_train_loader = feddm.train_dataloader(for_eval=True)
+    
+    val_loader = feddm.val_dataloader()
     test_loader = feddm.test_dataloader()
+
     logging.info("Num users: %d" % num_users)
     logging.info("Num items: %d" % num_items)
     
@@ -44,6 +47,7 @@ def run_server(
     model.to(cfg.TRAIN.device)
 
     loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
+    # loss_fn = torch.nn.BCEWithLogitsLoss()
 
     logging.info("Init clients")
     client_sampler = ClientSampler(feddm.num_users, n_workers=1)
@@ -57,12 +61,23 @@ def run_server(
         log_dict = {"epoch": epoch}
         log_dict.update(server.train_round(epoch_idx=epoch))
         if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
-            test_metrics = server.evaluate(test_loader, all_train_loader)
-            log_dict.update(test_metrics)
+            if val_loader is not None:
+                val_metrics = server.evaluate(val_loader, all_train_loader)
+                rename_val_metrics = {}
+                for k, v in val_metrics.items():
+                    rename_val_metrics['val/' + k] = v
+                log_dict.update(rename_val_metrics)
+                
+            test_metrics = server.evaluate(test_loader)
+            rename_test_metrics = {}
+            for k, v in test_metrics.items():
+                rename_test_metrics['test/' + k] = v
+            log_dict.update(rename_test_metrics)
+
         log_dict.update(server._timestats._time_dict)
         if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
             mylogger.log(log_dict, term_out=True)
-        server._timestats.reset()
+        # server._timestats.reset()
     client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)

@@ -23,12 +23,16 @@
 
 # Run lora version
 # lr = 1e-1
-python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=4 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
-python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=8 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
-python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=16 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
+# python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=4 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
+# python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=8 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
+# python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=16 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4
 
 # lr = 1e-0.5 | 0.3162
 # python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=4 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=0.3162 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
 # python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=8 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=0.3162 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
 # python fedtrain.py data=pinterest net=fedmf-lora-b net.init.lora_rank=16 task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=0.3162 FED.agg_epochs=2000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=1e-4
 
+# Compression
+python fedtrain.py data=pinterest net=fedmf task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=5e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4 compression=svd FED.compression_kwargs.rank=4
+python fedtrain.py data=pinterest net=fedmf task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=5e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4 compression=svd FED.compression_kwargs.rank=8
+python fedtrain.py data=pinterest net=fedmf task_name=fedtrain5 TRAIN.wandb=True TRAIN.lr=5e-1 FED.agg_epochs=5000 EVAL.interval=100 DATALOADER.batch_size=256 TRAIN.weight_decay=5e-4 compression=svd FED.compression_kwargs.rank=16

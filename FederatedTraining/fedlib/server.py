@@ -87,4 +87,6 @@ class SimpleServer:
                 train_loss = evaluate.cal_loss(eval_model, train_loader, loss_function=torch.nn.BCEWithLogitsLoss(),device=self.cfg.TRAIN.device)
             eval_model.eval()
             HR, NDCG = evaluate.metrics(eval_model, test_loader, self.cfg.EVAL.topk, device=self.cfg.TRAIN.device)
-        return {"HR": HR, "NDCG": NDCG, "train_loss": train_loss}
+        if train_loader is not None:
+            return {"HR": HR, "NDCG": NDCG, "train_loss": train_loss}
+        return {"HR": HR, "NDCG": NDCG}

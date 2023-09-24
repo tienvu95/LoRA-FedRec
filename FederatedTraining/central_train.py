@@ -98,7 +98,7 @@ def main(cfg):
             else:
                 raise ValueError("Optimizer not supported")
             # optimizer = torch.optim.Adam(client._model.parameters(), lr=cfg.TRAIN.lr, weight_decay=cfg.TRAIN.weight_decay)
-            metrics = client._fit(client.train_loader, optimizer, loss_function, num_epochs=2, device=device, mask_zero_user_index=False)
+            metrics = client._fit(client.train_loader, optimizer, loss_function, num_epochs=1, device=device, mask_zero_user_index=False)
             total_loss += np.mean(metrics['loss'])
 
         total_loss /= count

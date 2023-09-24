@@ -34,23 +34,46 @@ class RecDataModule():
         self.root = Path(root)
         self.num_train_negatives = num_train_negatives
     
+    def process_test_data(self, test_df):
+        test_data = []
+        for index, row in test_df.iterrows():
+            u = row['user']
+            for i in row['neg_sample']:
+                test_data.append((u, i, 0.0))
+            test_data.append((u, row['pos_item'], 1.0))
+        test_data = np.array(test_data)
+        return test_data
+
     def setup(self):
         self.post_train_df = pd.read_csv(self.root / 'train.csv')
         self.test_df = pd.read_csv(self.root / 'test.csv')
+
         self.num_users = max(self.post_train_df['user'].max(), self.test_df['user'].max()) + 1
         self.num_items = max(self.post_train_df['item'].max(), self.test_df['pos_item'].max()) + 1
 
         self.test_df['neg_sample'] = self.test_df['neg_sample'].apply(lambda x: [int(s) for s in x[1:-1].split(',')])
         test_inter_dict = self.test_df.apply(lambda x: x['neg_sample'] + [x['pos_item']], axis=1)
+        test_inter_dict = dict(zip(self.test_df['user'].values, test_inter_dict.values))
+
+        if "v2" in str(self.root):
+            self.val_df = pd.read_csv(self.root / 'val.csv')
+            self.val_df['neg_sample'] = self.val_df['neg_sample'].apply(lambda x: [int(s) for s in x[1:-1].split(',')])
+            
+            self.num_users = max(self.num_users, self.val_df['user'].max() + 1)
+            self.num_items = max(self.num_items, self.val_df['pos_item'].max() + 1)
+            
+            val_inter_dict = self.val_df.apply(lambda x: x['neg_sample'] + [x['pos_item']], axis=1)
+            val_inter_dict = dict(zip(self.val_df['user'].values, val_inter_dict.values))
+            for u, test_items in val_inter_dict.items():
+                test_inter_dict[u] = set(test_inter_dict[u]).union(test_items)
+            self.val_data = self.process_test_data(self.val_df)
+
+        else:
+            self.val_data = None
+
         self.item_pool, self.pos_item_dict, self.user_interaction_count = get_neg_items(self.post_train_df, test_inter_dict)
 
-        self.test_data = []
-        for index, row in self.test_df.iterrows():
-            u = row['user']
-            for i in row['neg_sample']:
-                self.test_data.append((u, i, 0.0))
-            self.test_data.append((u, row['pos_item'], 1.0))
-        self.test_data = np.array(self.test_data)
+        self.test_data = self.process_test_data(self.test_df)
 
         self.item_pool = tuple(self.item_pool)
     
@@ -66,7 +89,12 @@ class RecDataModule():
         # neg_items = list(self._get_neg_items_of_user(u))
         neg_samples = []
         while len(neg_samples) < sample_size:
-            sample = random.sample(self.item_pool, sample_size - len(neg_samples))
+            # k = min(sample_size - len(neg_samples), len(self.item_pool))
+            # if k == len(self.item_pool):
+            #     sample = self.item_pool
+            # else:
+            k = num_negatives
+            sample = random.sample(self.item_pool, k)
             sample = set(sample) - self.pos_item_dict[u]
             neg_samples.extend(sample)
         neg_samples = neg_samples[:sample_size]
@@ -112,12 +140,24 @@ class RecDataModule():
         dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
         return dataset
 
+    def val_dataset(self):
+        if self.val_data is None:
+            return None
+        users_tensor = torch.tensor(self.val_data[:, 0], dtype=torch.long)
+        items_tensor = torch.tensor(self.val_data[:, 1], dtype=torch.long)
+        ratings_tensor = torch.tensor(self.val_data[:, 2], dtype=torch.float)
+        dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
+        return dataset
+
 def get_datamodule(cfg):
     if cfg.DATA.name == "lastfm":
         root = cfg.DATA.root + "/lastfm"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "movielens":
         root = cfg.DATA.root + "/ml-1m"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "movielens-v2":
+        root = cfg.DATA.root + "/ml-1m-v2"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "pinterest":
         root = cfg.DATA.root + "/pinterest"

@@ -65,7 +65,7 @@ class Logger():
     def __init__(self, cfg, model, wandb=True) -> None:
         self.wandb = wandb
         if wandb:
-            self.run = self.init_wandb(cfg, model)
+            self.run = self.init_wandb(cfg, model, project_name=cfg.EXP.project)
         self.hist = []
 
     def log(self, log_dict, term_out=True):
@@ -85,12 +85,12 @@ class Logger():
 
 
     @classmethod
-    def init_wandb(cls, cfg, model):
+    def init_wandb(cls, cfg, model, project_name):
         hparams = log_hyperparameters({"cfg": cfg, "model": model, "trainer": None})
         # start a new wandb run to track this script
         run = wandb.init(
             # set the wandb project where this run will be logged
-            project="lowrank-fedrec-2",
+            project=project_name,
             
             # track hyperparameters and run metadata
             config=hparams,
