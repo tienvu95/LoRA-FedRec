@@ -6,6 +6,8 @@ defaults:
   - compression: none.yaml
   - paths: default.yaml
   - hydra: default.yaml
+  # config for hyperparameter optimization
+  - hparams_search: null
 
 FED:
   num_clients: 120

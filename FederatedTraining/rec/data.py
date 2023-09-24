@@ -162,6 +162,9 @@ def get_datamodule(cfg):
     elif cfg.DATA.name == "pinterest":
         root = cfg.DATA.root + "/pinterest"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
+    elif cfg.DATA.name == "pinterest-v2":
+        root = cfg.DATA.root + "/pinterest-v2"
+        dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)
     elif cfg.DATA.name == "amazon-video":
         root = cfg.DATA.root + "/Amazon_Instant_Video"
         dm = RecDataModule(root=root, num_train_negatives=cfg.DATA.num_negatives)

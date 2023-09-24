@@ -264,7 +264,7 @@ def gen_movielen_files(root, train, prefix='ml-1m'):
 
 if __name__ == "__main__":
     DATA_ROOT = Path('./data/Data')
-    dataset_name = 'ml-1m'
+    dataset_name = 'pinterest'
 
     if dataset_name == 'amz_ins':
         train_df, test_data, cfg = gen_ds(dataset_name='amz_ins')
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         train_df, val_df = gen_movielen_files(DATA_ROOT, train=True, prefix='ml-1m')
         test_df = gen_movielen_files(DATA_ROOT, train=False, prefix='ml-1m')
     elif dataset_name == 'pinterest':
-        train_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
+        train_df, val_df = gen_movielen_files(DATA_ROOT, train=True, prefix='pinterest-20')
         test_df = gen_movielen_files(DATA_ROOT, train=False,prefix='pinterest-20')
 
 

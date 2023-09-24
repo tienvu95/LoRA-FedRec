@@ -1,0 +1,13 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+DATA:
+  root: ../dataset
+  name: 'pinterest-v2'
+
+FED:
+  num_clients: 550
+  agg_epochs: 400
+  local_epochs: 2

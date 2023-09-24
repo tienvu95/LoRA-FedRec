@@ -1,4 +1,4 @@
-from typing import List, Any, Tuple
+from typing import Dict, List, Any, Optional, Tuple
 import hydra
 from omegaconf import OmegaConf
 import torch.nn
@@ -81,16 +81,45 @@ def run_server(
     client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
-    return hist_df, pca_var_df
+    return hist_df, pca_var_df, log_dict
+
+def get_metric_value(metric_dict: Dict[str, Any], metric_name: Optional[str]) -> Optional[float]:
+    """Safely retrieves value of the metric logged in LightningModule.
+
+    :param metric_dict: A dict containing metric values.
+    :param metric_name: If provided, the name of the metric to retrieve.
+    :return: If a metric name was provided, the value of the metric.
+    """
+    if not metric_name:
+        logging.info("Metric name is None! Skipping metric value retrieval...")
+        return None
+
+    if metric_name not in metric_dict:
+        raise Exception(
+            f"Metric value not found! <metric_name={metric_name}>\n"
+            "Make sure metric name logged in LightningModule is correct!\n"
+            "Make sure `optimized_metric` name in `hparams_search` config is correct!"
+        )
+
+    metric_value = metric_dict[metric_name]
+    logging.info(f"Retrieved metric value! <{metric_name}={metric_value}>")
+
+    return metric_value
 
 @hydra.main(config_path=str(Path.cwd() / 'configs'), config_name='fedtrain.yaml', version_base="1.2")
 def main(cfg):
     OmegaConf.resolve(cfg)
     logging.info(cfg)
     out_dir = Path(cfg.paths.output_dir)
-    hist_df, pca_var_df = run_server(cfg)
+    hist_df, pca_var_df, log_dict = run_server(cfg)
     hist_df.to_csv(out_dir / "hist.csv", index=False)
     pca_var_df.to_csv(out_dir / "pca_var.csv", index=False)
+    
+    # safely retrieve metric value for hydra-based hyperparameter optimization
+    metric_value = get_metric_value(
+        metric_dict=log_dict, metric_name=cfg.get("optimized_metric")
+    )
+    return metric_value
 
 if __name__ == '__main__':
     main()
