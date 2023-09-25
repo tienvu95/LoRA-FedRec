@@ -76,7 +76,11 @@ class RecDataModule():
         self.test_data = self.process_test_data(self.test_df)
 
         self.item_pool = tuple(self.item_pool)
-    
+
+        self.post_train_df['user'] = self.post_train_df['user'].astype(int)
+        self.post_train_df['item'] = self.post_train_df['item'].astype(int)
+        self.post_train_df['rating'] = self.post_train_df['rating'].astype(float)
+
     def _get_neg_items_of_user(self, u):
         return self.item_pool - self.pos_item_dict[u]
 
@@ -124,13 +128,17 @@ class RecDataModule():
             num_negatives = self.num_train_negatives
         neg_train_df = self._sample_neg_traindf(num_negatives)
         train_rating_df = pd.concat([self.post_train_df, neg_train_df], ignore_index=True)
+        data = train_rating_df[['user', 'item', 'rating']].values.tolist()
+        for i in range(len(data)):
+            data[i] = (int(data[i][0]), int(data[i][1]), float(data[i][2]))
+
         # train_rating_df = train_rating_df.sample(frac=1).reset_index(drop=True)
         
-        users_tensor = torch.tensor(train_rating_df['user'].values, dtype=torch.long)
-        items_tensor = torch.tensor(train_rating_df['item'].values, dtype=torch.long)
-        ratings_tensor = torch.tensor(train_rating_df['rating'].values, dtype=torch.float)
-        dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
-        return dataset
+        # users_tensor = torch.tensor(train_rating_df['user'].values, dtype=torch.long)
+        # items_tensor = torch.tensor(train_rating_df['item'].values, dtype=torch.long)
+        # ratings_tensor = torch.tensor(train_rating_df['rating'].values, dtype=torch.float)
+        # dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
+        return data
 
     def test_dataset(self):
         # test_tensor = torch.tensor(self.test_data, dtype=torch.float)
