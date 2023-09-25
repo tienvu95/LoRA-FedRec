@@ -43,7 +43,7 @@ class SimpleServer:
             self.server_params.decompress()
 
         self._timestats.set_aggregation_epoch(epoch_idx)
-        pbar = tqdm.tqdm(participants, desc='Training', disable=True)
+        pbar = tqdm.tqdm(participants, desc='Training', disable=False)
         update_numel = 0
         # all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()

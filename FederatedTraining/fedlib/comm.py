@@ -68,6 +68,7 @@ class ClientSampler:
             train_loader = pickle.loads(train_loader)
             participants[i].train_loader = train_loader
             total_ds_sizes += len(train_loader.dataset)
+            # yield participants[i]
         return participants, total_ds_sizes
 
     def prepare_dataloader(self, n_clients_per_round) -> None:

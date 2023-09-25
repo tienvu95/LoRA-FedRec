@@ -39,9 +39,9 @@ class RecDataModule():
         for index, row in test_df.iterrows():
             u = row['user']
             for i in row['neg_sample']:
-                test_data.append((u, i, 0.0))
-            test_data.append((u, row['pos_item'], 1.0))
-        test_data = np.array(test_data)
+                test_data.append((int(u), int(i), 0.0))
+            test_data.append((int(u), int(row['pos_item']), 1.0))
+        # test_data = np.array(test_data)
         return test_data
 
     def setup(self):
@@ -134,20 +134,20 @@ class RecDataModule():
 
     def test_dataset(self):
         # test_tensor = torch.tensor(self.test_data, dtype=torch.float)
-        users_tensor = torch.tensor(self.test_data[:, 0], dtype=torch.long)
-        items_tensor = torch.tensor(self.test_data[:, 1], dtype=torch.long)
-        ratings_tensor = torch.tensor(self.test_data[:, 2], dtype=torch.float)
-        dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
-        return dataset
+        # users_tensor = torch.tensor(self.test_data[:, 0], dtype=torch.long)
+        # items_tensor = torch.tensor(self.test_data[:, 1], dtype=torch.long)
+        # ratings_tensor = torch.tensor(self.test_data[:, 2], dtype=torch.float)
+        # dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
+        return self.test_data
 
     def val_dataset(self):
         if self.val_data is None:
             return None
-        users_tensor = torch.tensor(self.val_data[:, 0], dtype=torch.long)
-        items_tensor = torch.tensor(self.val_data[:, 1], dtype=torch.long)
-        ratings_tensor = torch.tensor(self.val_data[:, 2], dtype=torch.float)
-        dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
-        return dataset
+        # users_tensor = torch.tensor(self.val_data[:, 0], dtype=torch.long)
+        # items_tensor = torch.tensor(self.val_data[:, 1], dtype=torch.long)
+        # ratings_tensor = torch.tensor(self.val_data[:, 2], dtype=torch.float)
+        # dataset = TensorDataset(users_tensor, items_tensor, ratings_tensor)
+        return self.val_data
 
 def get_datamodule(cfg):
     if cfg.DATA.name == "lastfm":
