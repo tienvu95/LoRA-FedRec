@@ -34,11 +34,11 @@ class TimeStats(object):
         self._aggregation_epoch = aggregation_epoch
 
     @contextmanager
-    def timer(self, flag_name, max=False):
+    def timer(self, flag_name, max_agg=False):
         # flag_name = 'time/' + flag_name
         self.flag_timestem[flag_name] = time.time()
         yield self.flag_timestem[flag_name]
-        if max:
+        if max_agg:
             self._time_dict[flag_name] = max(self._time_dict.get(flag_name, 0), time.time() - self.flag_timestem[flag_name])
         else:
             self._time_dict[flag_name] = self._time_dict.get(flag_name, 0) + time.time() - self.flag_timestem[flag_name]

@@ -60,7 +60,7 @@ def run_server(
     for epoch in range(cfg.FED.agg_epochs):
         log_dict = {"epoch": epoch}
         log_dict.update(server.train_round(epoch_idx=epoch))
-        if (epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1):                
+        if (cfg.EVAL.interval > 0) and ((epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1)):                
             test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
             log_dict.update(test_metrics)
 

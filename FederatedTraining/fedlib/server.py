@@ -45,7 +45,7 @@ class SimpleServer:
                 self.server_params.compress(**self.cfg.FED.compression_kwargs)
                 self.server_params.decompress()
 
-        pbar = tqdm.tqdm(participants, desc='Training', disable=False)
+        pbar = tqdm.tqdm(participants, desc='Training', disable=True)
         update_numel = 0
         # all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
@@ -57,7 +57,7 @@ class SimpleServer:
         #     all_data_size = self.client_sampler.prepare_dataloader(participants)
 
         for client in pbar:
-            with self._timestats.timer("time/client_time", max=True):
+            with self._timestats.timer("time/client_time", max_agg=True):
                 update, data_size, metrics = client.fit(self.server_params, 
                                                         local_epochs=self.cfg.FED.local_epochs, 
                                                         config=self.cfg, 
