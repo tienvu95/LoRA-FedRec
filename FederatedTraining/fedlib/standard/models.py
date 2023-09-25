@@ -77,14 +77,14 @@ class FedParamSpliter:
         return private_params, submit_params
     
     def _get_splited_params_for_optim(self, **kwarfs):
-        submit_params = {}
-        private_params = {}
-        for key, val in self.state_dict().items():
-            if 'item' in key:
-                submit_params[key] = val
+        submit_params = []
+        private_params = []
+        for key, val in self.named_parameters():
+            if 'item' in key and 'emb' in key:
+                submit_params.append(val)
             else:
-                private_params[key] = val
-        return private_params, submit_params
+                private_params.append(val)
+        return submit_params, private_params 
     
     def _set_state_from_splited_params(self, splited_params):
         private_params, submit_params = splited_params
