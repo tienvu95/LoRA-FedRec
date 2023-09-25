@@ -67,13 +67,18 @@ class Client:
             if server_params is not None:
                 with stats_logger.timer('set_parameters'):
                     self.set_parameters(server_params)
-            # param_groups = self._model._get_splited_params_for_optim()
-            # optimizer = torch.optim.Adam([{'params': list(param_groups[0].values()),},
-            #                               {'params': list(param_groups[1].values()), 'lr': config.TRAIN.lr*train_loader.batch_size}, ], lr=config.TRAIN.lr)
+        # item_emb_params, params_1  = self._model._get_splited_params_for_optim()
+        # opt_params = {
+        #     [
+        #         {'params': item_emb_params, 'lr': config.TRAIN.lr*train_loader.batch_size},
+        #         {'params': params_1, 'lr': config.TRAIN.lr},
+        #     ]
+        # }
+        opt_params = self._model.parameters()
         if config.TRAIN.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(self._model.parameters(), lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
+            optimizer = torch.optim.SGD(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
         elif config.TRAIN.optimizer == 'adam':
-            optimizer = torch.optim.Adam(self._model.parameters(), lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
+            optimizer = torch.optim.Adam(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
 
 
         with stats_logger.timer('fit'):

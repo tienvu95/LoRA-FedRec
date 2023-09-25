@@ -34,11 +34,14 @@ class TimeStats(object):
         self._aggregation_epoch = aggregation_epoch
 
     @contextmanager
-    def timer(self, flag_name):
+    def timer(self, flag_name, max=False):
         # flag_name = 'time/' + flag_name
         self.flag_timestem[flag_name] = time.time()
         yield self.flag_timestem[flag_name]
-        self._time_dict[flag_name] = self._time_dict.get(flag_name, 0) + time.time() - self.flag_timestem[flag_name]
+        if max:
+            self._time_dict[flag_name] = max(self._time_dict.get(flag_name, 0), time.time() - self.flag_timestem[flag_name])
+        else:
+            self._time_dict[flag_name] = self._time_dict.get(flag_name, 0) + time.time() - self.flag_timestem[flag_name]
         del self.flag_timestem[flag_name]
 
     def mark_start(self, name):

@@ -38,12 +38,14 @@ class SimpleServer:
         aggregator = AvgAggregator(self.server_params, strategy=self.cfg.FED.aggregation)
         total_loss = 0
 
-        if epoch_idx > 0:
-            self.server_params.compress(**self.cfg.FED.compression_kwargs)
-            self.server_params.decompress()
-
         self._timestats.set_aggregation_epoch(epoch_idx)
-        pbar = tqdm.tqdm(participants, desc='Training', disable=True)
+
+        with self._timestats.timer("time/server_time"):
+            if epoch_idx > 0:
+                self.server_params.compress(**self.cfg.FED.compression_kwargs)
+                self.server_params.decompress()
+
+        pbar = tqdm.tqdm(participants, desc='Training', disable=False)
         update_numel = 0
         # all_data_size = 0
         # B_0 = self.server_params['embed_item_GMF.lora_B'].clone()
@@ -55,23 +57,26 @@ class SimpleServer:
         #     all_data_size = self.client_sampler.prepare_dataloader(participants)
 
         for client in pbar:
-            update, data_size, metrics = client.fit(self.server_params, 
-                                                    local_epochs=self.cfg.FED.local_epochs, 
-                                                    config=self.cfg, 
-                                                    device=self.cfg.TRAIN.device, 
-                                                    stats_logger=self._timestats,
-                                                    mask_zero_user_index=True)
+            with self._timestats.timer("time/client_time", max=True):
+                update, data_size, metrics = client.fit(self.server_params, 
+                                                        local_epochs=self.cfg.FED.local_epochs, 
+                                                        config=self.cfg, 
+                                                        device=self.cfg.TRAIN.device, 
+                                                        stats_logger=self._timestats,
+                                                        mask_zero_user_index=True)
             # update_norm += torch.linalg.norm((update['embed_item_GMF.lora_A'] @ update['embed_item_GMF.lora_B'])*update["embed_item_GMF.lora_scaling"]).item()
             # update_norm += torch.linalg.norm(update['embed_item_GMF.weight']).item()
-            update_numel += sum([t.numel() for t in update.values()])
-            aggregator.collect(update, weight=(data_size/all_data_size))
+            with self._timestats.timer("time/server_time"):
+                update_numel += sum([t.numel() for t in update.values()])
+                aggregator.collect(update, weight=(data_size/all_data_size))
             
-            client_loss = np.mean(metrics['loss'])
-            log_dict = {"client_loss": client_loss}
-            total_loss += client_loss
-            pbar.set_postfix(log_dict)
-        aggregated_update = aggregator.finallize()
-        self._step_server_optim(aggregated_update)
+                client_loss = np.mean(metrics['loss'])
+                log_dict = {"client_loss": client_loss}
+                total_loss += client_loss
+                pbar.set_postfix(log_dict)
+        with self._timestats.timer("time/server_time"):
+            aggregated_update = aggregator.finallize()
+            self._step_server_optim(aggregated_update)
         # B_1 = self.server_params['embed_item_GMF.lora_B'].clone()
         # print(torch.linalg.norm(B_1 - B_0))
         # print("update norm", update_norm / len(participants))
