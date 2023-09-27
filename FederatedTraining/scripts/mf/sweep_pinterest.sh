@@ -1,9 +1,1 @@
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=32 FED.local_epochs=1
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=256 FED.local_epochs=1
-
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=32 FED.local_epochs=2
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=128 FED.local_epochs=2
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=256 FED.local_epochs=2
-
-python fedtrain.py data=pinterest-v2 net=fedmf task_name=fedsweep-v2 TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=1000 TRAIN.weight_decay=5e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=256 FED.local_epochs=4
+python fedtrain.py -m hparams_search=pinterest-optuna data=pinterest-v2 net=fedmf net.init.gmf_emb_size=32 task_name=fedsweep-v3 TRAIN.wandb=True FED.agg_epochs=3000 TRAIN.log_interval=10 EVAL.interval=100

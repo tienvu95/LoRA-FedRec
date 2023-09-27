@@ -94,7 +94,7 @@ class Client:
                     with stats_logger.timer('compress'):
                         update.compress(**config.FED.compression_kwargs)
 
-        # timestats.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
+        # stats_logger.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics
     
     def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, **forward_kwargs):

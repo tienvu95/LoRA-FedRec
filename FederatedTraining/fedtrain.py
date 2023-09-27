@@ -64,10 +64,11 @@ def run_server(
             test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
             log_dict.update(test_metrics)
 
-        log_dict.update(server._timestats._time_dict)
+        time_log = {f"time/{k}": v for k, v in server._timestats._time_dict.items()}
+        log_dict.update(time_log)
         if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
             mylogger.log(log_dict, term_out=True)
-        # server._timestats.reset()
+        server._timestats.reset('client_time', 'server_time')
     client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)

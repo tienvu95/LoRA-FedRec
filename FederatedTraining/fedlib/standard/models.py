@@ -55,6 +55,12 @@ class TransferedParams(OrderedDict):
         if self.compress_method == 'none':
             return
         self['embed_item_GMF.weight'] = self['embed_item_GMF.weight'].decompress()
+    
+    def encrypt(self):
+        pass
+
+    def decrypt(self):
+        pass
 
 class FedParamSpliter:
     def __init__(self) -> None:

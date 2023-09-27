@@ -14,20 +14,24 @@ import pandas as pd
 
 class TimeStats(object):
     def __init__(self) -> None:
-        self.reset()
+        # self.reset()
+        self.flag_timestem = {}
+        self._time_dict = {}
         self._pca_vars = []
 
     def __str__(self):
         return str(self._time_dict)
     
-    def reset(self):
-        self.flag_timestem = {}
-        self._time_dict = {
-            "set_parameters": 0,
-            "fit": 0,
-            "evaluate": 0,
-            "get_parameters": 0,
-        }
+    def reset(self, *flat_names):
+        # self.flag_timestem = {}
+        # self._time_dict = {
+        #     "set_parameters": 0,
+        #     "fit": 0,
+        #     "evaluate": 0,
+        #     "get_parameters": 0,
+        # }
+        for name in flat_names:
+            self._time_dict[name] = 0
         # self._pca_vars = []
     
     def set_aggregation_epoch(self, aggregation_epoch):

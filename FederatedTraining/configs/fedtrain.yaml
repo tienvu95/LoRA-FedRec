@@ -35,11 +35,11 @@ TRAIN:
   lr_scheduler: None
   device: 'cuda'
   wandb: False
-  log_interval: 1
+  log_interval: 10
 
 EVAL:
   topk: 10
-  interval: 1
+  interval: 100
 
 EXP:
   seed: 42
