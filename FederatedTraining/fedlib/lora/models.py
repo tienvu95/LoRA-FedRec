@@ -168,9 +168,9 @@ class FedLoraMF(LoraMF, FedLoraParamsSplitter):
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
     
-    def _reinit_B(self):
-        print("Reinit B")
-        nn.init.normal_(self.embed_item_GMF.lora_B)
+    # def _reinit_B(self):
+    #     print("Reinit B")
+    #     nn.init.normal_(self.embed_item_GMF.lora_B)
     
     @classmethod
     def merge_client_params(cls, clients, server_params, model, device):

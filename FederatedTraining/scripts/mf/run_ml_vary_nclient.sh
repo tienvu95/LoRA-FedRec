@@ -1,0 +1,4 @@
+# Base MF model 
+python fedtrain.py data=ml-1m net=fedmf net.init.gmf_emb_size=64 task_name=fedtrain-abs-nclient TRAIN.wandb=True FED.agg_epochs=2000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=1e-4 TRAIN.lr=1e-1 EXP.project=lora-fedrec-vary-nclient FED.num_clients=120
+python fedtrain.py data=ml-1m net=fedmf net.init.gmf_emb_size=64 task_name=fedtrain-abs-nclient TRAIN.wandb=True FED.agg_epochs=2000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=1e-4 TRAIN.lr=1e-1 EXP.project=lora-fedrec-vary-nclient FED.num_clients=320
+python fedtrain.py data=ml-1m net=fedmf net.init.gmf_emb_size=64 task_name=fedtrain-abs-nclient TRAIN.wandb=True FED.agg_epochs=2000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=1e-4 TRAIN.lr=1e-1 EXP.project=lora-fedrec-vary-nclient FED.num_clients=604

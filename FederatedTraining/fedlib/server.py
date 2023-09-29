@@ -26,7 +26,10 @@ class SimpleServer:
     
     def prepare(self):
         # reinit
-        self.model.server_prepare(normalize_B=self.cfg.net.normalize_B)
+        if self.cfg.net.get('server_prepare_kwargs', None) is not None:
+            self.model.server_prepare(**self.cfg.net.server_prepare_kwargs)
+        else:
+            self.model.server_prepare()
         self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
 
 

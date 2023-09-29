@@ -5,5 +5,5 @@ init:
   lora_alpha: ${net.init.lora_rank}
   freeze_B: True
 server_prepare_kwargs:
-  init_B_strategy: "l2norm"
-name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}_nb
+  init_B_strategy: "orthnorm"
+name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}ob
