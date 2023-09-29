@@ -146,5 +146,5 @@ class LoraMF(MF):
     def _merge_all_lora_weights(self):
         self.embed_item_GMF.merge_lora_weights()
     
-    def _reset_all_lora_weights(self, to_zero=False, keep_B=False):
-        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
+    def _reset_all_lora_weights(self, to_zero=False, keep_B=False, normalize_B=False):
+        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B, normalize_B=normalize_B)

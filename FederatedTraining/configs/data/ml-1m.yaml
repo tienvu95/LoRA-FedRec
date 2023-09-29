@@ -11,3 +11,6 @@ FED:
   num_clients: 60
   agg_epochs: 400
   local_epochs: 2
+
+DATALOADER:
+  batch_size: 64

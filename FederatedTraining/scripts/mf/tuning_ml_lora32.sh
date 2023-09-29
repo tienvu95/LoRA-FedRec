@@ -1,2 +1,4 @@
 # Tuning lr and weight decay
-python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora16 TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=16 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora32-nb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-nb net.init.gmf_emb_size=64 net.init.lora_rank=32 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora8-nb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-nb net.init.gmf_emb_size=64 net.init.lora_rank=8 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora16-nb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-nb net.init.gmf_emb_size=64 net.init.lora_rank=16 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd

@@ -56,7 +56,7 @@ class Embedding(nn.Embedding, LoRALayer):
         nn.Embedding.reset_parameters(self)
         self.reset_lora_parameters()
     
-    def reset_lora_parameters(self, to_zero=False, keep_B=False):
+    def reset_lora_parameters(self, to_zero=False, keep_B=False, normalize_B=False):
         if hasattr(self, 'lora_A'):
             if to_zero:
                 nn.init.zeros_(self.lora_A)
@@ -67,6 +67,12 @@ class Embedding(nn.Embedding, LoRALayer):
                 nn.init.zeros_(self.lora_A)
                 if not keep_B:
                     nn.init.normal_(self.lora_B)
+                if normalize_B:
+                    # normalize rows of B
+                    # print("Normalize B")
+                    with torch.no_grad():
+                        self.lora_B /= torch.linalg.norm(self.lora_B, dim=1, keepdim=True)
+                        
             self.merged = False
     
     def merge_lora_weights(self):

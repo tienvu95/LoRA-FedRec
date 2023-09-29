@@ -56,7 +56,7 @@ class FedDataModule(object):
     def train_dataloader(self, cid=None, for_eval=False):
         if cid is None:
             if for_eval:
-                return data.DataLoader(self.rec_datamodule.train_dataset(), batch_size=1024, shuffle=False, num_workers=4)
+                return data.DataLoader(self.rec_datamodule.train_dataset(), batch_size=1024, shuffle=False, num_workers=2)
             else:
                 return data.DataLoader(self.rec_datamodule.train_dataset(), **self.cfg.DATALOADER)
         return data.DataLoader(self.train_dataset(cid), **self.cfg.DATALOADER)

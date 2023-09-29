@@ -4,5 +4,5 @@ init:
   lora_rank: 2
   lora_alpha: ${net.init.lora_rank}
   freeze_B: True
-normalize_B: False
-name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}_freezeB
+normalize_B: True
+name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}_nb

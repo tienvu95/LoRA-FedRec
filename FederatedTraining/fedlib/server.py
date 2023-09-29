@@ -26,7 +26,7 @@ class SimpleServer:
     
     def prepare(self):
         # reinit
-        self.model.server_prepare()
+        self.model.server_prepare(normalize_B=self.cfg.net.normalize_B)
         self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
 
 

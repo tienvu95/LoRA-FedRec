@@ -162,8 +162,8 @@ class FedLoraMF(LoraMF, FedLoraParamsSplitter):
             user = torch.zeros_like(user)
         return super().forward(user, item)
     
-    def server_prepare(self):
-        self._reset_all_lora_weights(to_zero=False, keep_B=False)
+    def server_prepare(self, **kwargs):
+        self._reset_all_lora_weights(to_zero=False, keep_B=False, **kwargs)
     
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
