@@ -17,6 +17,7 @@ from stats import TimeStats, Logger
 import torch.nn.functional as F
 import fedlib
 from fedlib.comm import ClientSampler
+import math
 
 import wandb
 
@@ -60,8 +61,11 @@ def run_server(
     for epoch in range(cfg.FED.agg_epochs):
         log_dict = {"epoch": epoch}
         log_dict.update(server.train_round(epoch_idx=epoch))
+        nan_flag = False
         if (cfg.EVAL.interval > 0) and ((epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1)):                
             test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
+            if math.isnan(test_metrics['train/loss']):
+                nan_flag = True
             log_dict.update(test_metrics)
 
         time_log = {f"time/{k}": v for k, v in server._timestats._time_dict.items()}
@@ -69,6 +73,8 @@ def run_server(
         if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
             mylogger.log(log_dict, term_out=True)
         server._timestats.reset('client_time', 'server_time')
+        if nan_flag:
+            break
     client_sampler.close()
     hist_df = mylogger.finish(quiet=True)
     pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
