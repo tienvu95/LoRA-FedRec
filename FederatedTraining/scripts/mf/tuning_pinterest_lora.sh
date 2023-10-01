@@ -1,0 +1,10 @@
+# Tuning lr and weight decay
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora2 TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=2 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora32 TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=32 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora8 TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=8 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora16 TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=16 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+
+# 01/10 - cyanos
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora-refactor-init TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=32 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora-refactor-init TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=2 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=pinterest-lora-refactor-init TRAIN.wandb=True data=pinterest-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=16 FED.agg_epochs=2000 DATALOADER.batch_size=128 FED.local_epochs=2 hparams_search=pinterest-lr-wd

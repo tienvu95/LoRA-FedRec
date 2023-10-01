@@ -54,27 +54,27 @@ class Embedding(nn.Embedding, LoRALayer):
 
     def reset_parameters(self):
         nn.Embedding.reset_parameters(self)
-        self.reset_lora_parameters()
+        self.reset_lora_parameters(init_B_strategy='zeros', keep_B=False)
     
     @torch.no_grad()
-    def reset_lora_parameters(self, to_zero=False, keep_B=False, init_B_strategy="random"):
+    def reset_lora_parameters(self, init_B_strategy, keep_B=False):
         if hasattr(self, 'lora_A'):
-            if to_zero:
-                nn.init.zeros_(self.lora_A)
-                if not keep_B:
-                    nn.init.zeros_(self.lora_B)
-            else:
-                # initialize A the same way as the default for nn.Linear and B to zero
-                nn.init.zeros_(self.lora_A)
-                if not keep_B:
+            # initialize A the same way as the default for nn.Linear and B to zero
+            nn.init.zeros_(self.lora_A)
+            if not keep_B:
+                if init_B_strategy == "random":
                     nn.init.normal_(self.lora_B)
-                if init_B_strategy == "l2norm":
-                    # normalize rows of B
-                    # print("Normalize B")
+                elif init_B_strategy == "l2norm":
+                    nn.init.normal_(self.lora_B)
                     self.lora_B /= torch.linalg.norm(self.lora_B, dim=1, keepdim=True)
                 elif init_B_strategy == "orthnorm":
+                    nn.init.normal_(self.lora_B)
                     U, S, Vh = torch.linalg.svd(self.lora_B.data, full_matrices=False)
                     self.lora_B.data = U @ Vh
+                elif init_B_strategy == 'zeros':
+                    nn.init.zeros_(self.lora_B)
+                else:
+                    raise ValueError("Unknown init_B_strategy: %s" % init_B_strategy)
             self.merged = False
     
     def merge_lora_weights(self):

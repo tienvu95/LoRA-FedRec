@@ -29,7 +29,7 @@ class SimpleServer:
         if self.cfg.net.get('server_prepare_kwargs', None) is not None:
             self.model.server_prepare(**self.cfg.net.server_prepare_kwargs)
         else:
-            self.model.server_prepare()
+            self.model.server_prepare(init_B_strategy='random')
         self._dummy_private_params, self.server_params = self.model._get_splited_params(server_init=True)
 
 

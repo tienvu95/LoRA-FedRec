@@ -90,7 +90,7 @@ class FedLoraParamsSplitter:
         state_dict = OrderedDict(params_dict)
         self.load_state_dict(state_dict, strict=True)
         self._merge_all_lora_weights()
-        self._reset_all_lora_weights(keep_B=self.freeze_B)
+        self._reset_all_lora_weights(init_B_strategy=None, keep_B=self.freeze_B)
 
 class FedLoraNCF(LoraNCF, FedLoraParamsSplitter):
     def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False, user_num=1):
@@ -163,7 +163,7 @@ class FedLoraMF(LoraMF, FedLoraParamsSplitter):
         return super().forward(user, item)
     
     def server_prepare(self, **kwargs):
-        self._reset_all_lora_weights(to_zero=False, keep_B=False, **kwargs)
+        self._reset_all_lora_weights(keep_B=False, **kwargs)
     
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
