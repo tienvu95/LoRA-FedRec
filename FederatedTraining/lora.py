@@ -73,6 +73,20 @@ class Embedding(nn.Embedding, LoRALayer):
                     self.lora_B.data = U @ Vh
                 elif init_B_strategy == 'zeros':
                     nn.init.zeros_(self.lora_B)
+                elif init_B_strategy == 'random_rotation':
+                    generator = torch.Generator().manual_seed(12345)
+                    emb_sz = self.lora_B.shape[1]
+                    # Random rotation matrix
+                    U = torch.randn(emb_sz, emb_sz, generator=generator)
+                    Q, R = torch.linalg.qr(U)
+                    
+                    # Random selection of r rows
+                    r = self.lora_B.shape[0]
+                    indices = torch.randperm(emb_sz)[:r]
+                    Q = Q[indices]
+                    Q = Q.to(self.lora_B.data.device)
+                    self.lora_B.data = math.sqrt(emb_sz / r) * Q
+
                 else:
                     raise ValueError("Unknown init_B_strategy: %s" % init_B_strategy)
             self.merged = False

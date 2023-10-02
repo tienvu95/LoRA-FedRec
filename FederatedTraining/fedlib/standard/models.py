@@ -144,7 +144,7 @@ class FedNCFModel(NCF, FedParamSpliter):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
         nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
     
-    def server_prepare(self):
+    def server_prepare(self, **kwargs):
         return
     
     @classmethod

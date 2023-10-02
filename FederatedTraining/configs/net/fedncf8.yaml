@@ -1,7 +1,7 @@
 init:
   _target_: fedlib.standard.models.FedNCFModel
-  gmf_emb_size: 16
-  mlp_emb_size: 16
-  mlp_layer_dims: [32, 64, 32, 16]
+  gmf_emb_size: 8
+  mlp_emb_size: 8
+  mlp_layer_dims: [16, 64, 32, 16]
   dropout: 0.0
 name: fedncf${net.init.gmf_emb_size}-${net.init.mlp_emb_size}

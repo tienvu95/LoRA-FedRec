@@ -67,14 +67,15 @@ class Client:
             if server_params is not None:
                 with stats_logger.timer('set_parameters'):
                     self.set_parameters(server_params)
-        # item_emb_params, params_1  = self._model._get_splited_params_for_optim()
-        # opt_params = {
-        #     [
-        #         {'params': item_emb_params, 'lr': config.TRAIN.lr*train_loader.batch_size},
-        #         {'params': params_1, 'lr': config.TRAIN.lr},
-        #     ]
-        # }
-        opt_params = self._model.parameters()
+        
+        if 'ncf' in config.net.name:
+            item_emb_params, params_1  = self._model._get_splited_params_for_optim()
+            opt_params = [
+                    {'params': item_emb_params, 'lr': config.TRAIN.lr*train_loader.batch_size},
+                    {'params': params_1, 'lr': config.TRAIN.lr},
+            ]
+        else:
+            opt_params = self._model.parameters()
         if config.TRAIN.optimizer == 'sgd':
             optimizer = torch.optim.SGD(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
         elif config.TRAIN.optimizer == 'adam':

@@ -1,0 +1,9 @@
+init:
+  _target_: fedlib.lora.models.FedLoraMF
+  gmf_emb_size: 64
+  lora_rank: 2
+  lora_alpha: ${net.init.lora_rank}
+  freeze_B: True
+server_prepare_kwargs:
+  init_B_strategy: "random_rotation"
+name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}rr_fb
