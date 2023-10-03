@@ -132,9 +132,9 @@ class LoraNCF(NCF):
         self.embed_item_GMF.merge_lora_weights()
         self.embed_item_MLP.merge_lora_weights()
     
-    def _reset_all_lora_weights(self, to_zero=False, keep_B=False):
-        self.embed_item_GMF.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
-        self.embed_item_MLP.reset_lora_parameters(to_zero=to_zero, keep_B=keep_B)
+    def _reset_all_lora_weights(self, init_B_strategy, keep_B=False):
+        self.embed_item_GMF.reset_lora_parameters(init_B_strategy=init_B_strategy, keep_B=keep_B)
+        self.embed_item_MLP.reset_lora_parameters(init_B_strategy=init_B_strategy, keep_B=keep_B)
     
 class LoraMF(MF):
     def __init__(self, user_num, item_num, gmf_emb_size=16, lora_rank=4, lora_alpha=4, freeze_B=False):

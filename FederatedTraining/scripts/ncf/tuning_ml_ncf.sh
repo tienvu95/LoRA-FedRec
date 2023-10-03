@@ -1,3 +1,5 @@
 # python fedtrain.py data=ml-1m-v2 net=fedmf task_name=fedtrain TRAIN.wandb=True TRAIN.lr=1e-1 FED.agg_epochs=2000 TRAIN.weight_decay=1e-4 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=256 FED.local_epochs=1
 # python fedtrain.py data=ml-1m net=fedncf16 task_name=fedtrain TRAIN.wandb=True FED.agg_epochs=2000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=5e-4 TRAIN.lr=1e-2 EXP.project=lora-fedrec
-python fedtrain.py -m data=ml-1m-v2 EXP.project=lora-fedrec-tuning  net=fedncf64,fedncf32,fedncf16,fedncf8 task_name=fedsweep TRAIN.wandb=True FED.agg_epochs=1000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=5e-4,1e-3 TRAIN.lr=1e-2,5e-3
+# python fedtrain.py -m data=ml-1m-v2 EXP.project=lora-fedrec-tuning  net=fedncf64,fedncf32,fedncf16,fedncf8 task_name=fedsweep TRAIN.wandb=True FED.agg_epochs=1000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=5e-4,1e-3 TRAIN.lr=1e-2,5e-3
+
+python fedtrain.py -m data=ml-1m-v2 EXP.project=lora-fedrec-tuning  net=fedncf64-lora-fb net.init.lora_rank=2,4,8,16,32 task_name=fedsweep TRAIN.wandb=True FED.agg_epochs=1000 TRAIN.log_interval=10 EVAL.interval=100 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.weight_decay=5e-4,1e-3 TRAIN.lr=1e-2,5e-3,5e-2
