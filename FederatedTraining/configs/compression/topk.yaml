@@ -1,0 +1,7 @@
+# @package _global_
+
+FED:
+  compression_kwargs:
+    method: 'topk'
+    ratio: 0.5
+  compression_plot_name: 'topk${FED.compression_kwargs.ratio}'
