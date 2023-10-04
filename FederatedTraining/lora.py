@@ -42,6 +42,7 @@ class Embedding(nn.Embedding, LoRALayer):
         LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=0,
                            merge_weights=merge_weights)
         # Actual trainable parameters
+        self._r = r
         if r > 0:
             logging.info("Init lora A and B")
             self.lora_A = nn.Parameter(self.weight.new_zeros((num_embeddings, r)))
@@ -64,6 +65,8 @@ class Embedding(nn.Embedding, LoRALayer):
             if not keep_B:
                 if init_B_strategy == "random":
                     nn.init.normal_(self.lora_B)
+                elif init_B_strategy == "random-scaling":
+                    nn.init.normal_(self.lora_B, mean=0, std=math.sqrt(1/ self._r))
                 elif init_B_strategy == "l2norm":
                     nn.init.normal_(self.lora_B)
                     self.lora_B /= torch.linalg.norm(self.lora_B, dim=1, keepdim=True)

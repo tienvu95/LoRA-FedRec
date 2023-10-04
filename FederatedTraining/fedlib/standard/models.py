@@ -110,7 +110,7 @@ class FedMF(MF, FedParamSpliter):
     def _reinit_private_params(self):
         nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
     
-    def server_prepare(self):
+    def server_prepare(self, **kwargs):
         return
     
     @classmethod

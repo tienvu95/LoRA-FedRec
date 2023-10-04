@@ -1,5 +1,9 @@
 # Tuning lr and weight decay
-python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora2-rr-fb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-rr-fb net.init.gmf_emb_size=64 net.init.lora_rank=2 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
-python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora8-rr-fb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-rr-fb net.init.gmf_emb_size=64 net.init.lora_rank=8 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora2-rr-fb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-rr-fb net.init.gmf_emb_size=64 net.init.lora_rank=2 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora8-rr-fb TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-rr-fb net.init.gmf_emb_size=64 net.init.lora_rank=8 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
 # python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora32-ob TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-ob net.init.gmf_emb_size=64 net.init.lora_rank=32 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
 # python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora16-ob TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-ob net.init.gmf_emb_size=64 net.init.lora_rank=16 FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+
+
+# python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora2-scaling-init TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=2 net.server_prepare_kwargs.init_B_strategy=random-scaling FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 hparams_search=ml-optuna-lr-wd
+python fedtrain.py -m EXP.project=lora-fedrec-tuning task_name=ml-lora2-scaling-init TRAIN.wandb=True data=ml-1m-v2 net=fedmf-lora-b net.init.gmf_emb_size=64 net.init.lora_rank=2 net.server_prepare_kwargs.init_B_strategy=random-scaling FED.agg_epochs=1500 DATALOADER.batch_size=64 FED.local_epochs=2 TRAIN.lr=0.02,0.03 TRAIN.weight_decay=5e-4
