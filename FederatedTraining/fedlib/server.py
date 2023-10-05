@@ -58,7 +58,8 @@ class SimpleServer:
         #     #     ds_size = client.prepare_dataloader(None, self._timestats)
         #     #     all_data_size += ds_size
         #     all_data_size = self.client_sampler.prepare_dataloader(participants)
-
+        item_norm = 0
+        user_norm = 0
         for client in pbar:
             with self._timestats.timer("client_time", max_agg=True):
                 update, data_size, metrics = client.fit(self.server_params, 
@@ -69,13 +70,17 @@ class SimpleServer:
                                                         mask_zero_user_index=True)
             # update_norm += torch.linalg.norm((update['embed_item_GMF.lora_A'] @ update['embed_item_GMF.lora_B'])*update["embed_item_GMF.lora_scaling"]).item()
             # update_norm += torch.linalg.norm(update['embed_item_GMF.weight']).item()
+            
             with self._timestats.timer("server_time"):
                 update_numel += sum([t.numel() for t in update.values()])
                 aggregator.collect(update, weight=(data_size/all_data_size))
             
                 client_loss = np.mean(metrics['loss'])
+
                 log_dict = {"client_loss": client_loss}
                 total_loss += client_loss
+                item_norm += metrics["item_avg_norm"]
+                user_norm += metrics["user_norm"]
                 pbar.set_postfix(log_dict)
         with self._timestats.timer("server_time"):
             aggregated_update = aggregator.finallize()
@@ -83,7 +88,11 @@ class SimpleServer:
         # B_1 = self.server_params['embed_item_GMF.lora_B'].clone()
         # print(torch.linalg.norm(B_1 - B_0))
         # print("update norm", update_norm / len(participants))
-        return {"client_loss": total_loss / len(participants), "update_numel": update_numel / len(participants), "data_size": all_data_size}
+        return {"client_loss": total_loss / len(participants), 
+                "update_numel": update_numel / len(participants), 
+                "data_size": all_data_size,
+                "item_norm": item_norm / len(participants), 
+                "user_norm": user_norm / len(participants), }
 
     
     @torch.no_grad()

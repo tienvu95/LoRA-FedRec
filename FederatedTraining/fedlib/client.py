@@ -76,7 +76,7 @@ class Client:
                     {'params': params_1, 'lr': config.TRAIN.lr},
             ]
         # else:
-        #     opt_params = self._model.parameters()
+            # opt_params = self._model.parameters()
         if config.TRAIN.optimizer == 'sgd':
             optimizer = torch.optim.SGD(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
         elif config.TRAIN.optimizer == 'adam':
@@ -84,7 +84,7 @@ class Client:
 
 
         with stats_logger.timer('fit'):
-            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=local_epochs, device=device, **forward_kwargs)
+            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=local_epochs, device=device, base_lr=config.TRAIN.lr, **forward_kwargs)
         
         with torch.no_grad():
             with stats_logger.timer('get_parameters'):
@@ -99,9 +99,10 @@ class Client:
         # stats_logger.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics
     
-    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, **forward_kwargs):
+    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, base_lr, **forward_kwargs):
         self._model.train() # Enable dropout (if have).
         loss_hist = []
+        # print("User", self.cid, end=" - ")
         for e in range(num_epochs):
             total_loss = 0
             count_example = 0
@@ -110,16 +111,58 @@ class Client:
                 item = item.to(device)
                 label = label.float().to(device)
 
+                optimizer.param_groups[0]['lr'] = base_lr * len(item)
+                # print("lr", optimizer.param_groups[0]['lr'])
+                # print(len(item))
+                # print(optimizer.param_groups[0]['lr'])
+
                 optimizer.zero_grad()
                 prediction = self._model(user, item, **forward_kwargs)
                 loss = loss_fn(prediction, label)
+
+                # l2_loss = 0
+
+
                 loss.backward()
+
+                if user[0].item() == 782:
+                    print("User", self.cid, "epoch", e, end=" - ")
+                    with torch.no_grad():
+                        grad_item_emb = self._model.embed_item_GMF.weight.grad
+                        grad_item_emb_norms = torch.norm(grad_item_emb, p=2, dim=1)
+                        grad_item_emb_norms = grad_item_emb_norms[item].mean().item()
+                        grad_user_emb = self._model.embed_user_GMF.weight.grad
+                        grad_user_emb_norms = torch.norm(grad_user_emb, p=2, dim=1)
+                        grad_user_emb_norms = grad_user_emb_norms[0].item()
+
+                        item_emb = self._model.embed_item_GMF.weight[item]
+                        user_emb = self._model.embed_user_GMF.weight[0]
+                        
+                        # print("rating: %d" % (label[0].item(),), end=";")
+                        print("pred: %f" % (torch.sigmoid(prediction[0]).item(),), end="; ")
+                        print("loss: %f" % (loss.item(),), end="; ")
+                        print("item: %f" % (grad_item_emb_norms*len(item), ), end="; ")
+                        print("user: %f" % (grad_user_emb_norms, ), end="; ")
+                        print(item_emb.norm(dim=1).mean().item(), user_emb.norm().item())
+
                 optimizer.step()
 
                 count_example += 1
                 total_loss += loss.item()
+            
             total_loss /= count_example
             loss_hist.append(total_loss)
+            # print('------------------')
+        # exit(0)
+        with torch.no_grad():
+            item_emb = self._model.embed_item_GMF.weight[item]
+            user_emb = self._model.embed_user_GMF.weight[0]
+
+            item_avg_norm = item_emb.norm(dim=1).mean().item(), 
+            user_norm = user_emb.norm().item()
+
         return {
-            "loss": loss_hist
+            "loss": loss_hist,
+            "item_avg_norm": item_avg_norm,
+            "user_norm": user_norm
         }

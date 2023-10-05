@@ -21,7 +21,7 @@ class MF(nn.Module):
     def _init_weight_(self):
         """ We leave the weights initialization here. """
         d = self.embed_user_GMF.weight.shape[1]
-        std = torch.sqrt(torch.tensor(2.0 / d))
+        std = torch.sqrt(torch.tensor(1 / d))
         # std=2/sqrt(d)
         # std = 1 / sqrt(d)
         # std = 0.01
