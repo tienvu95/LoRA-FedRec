@@ -108,7 +108,8 @@ class FedMF(MF, FedParamSpliter):
         return super().forward(user, item)
     
     def _reinit_private_params(self):
-        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
+        # nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
+        self._init_weight_()
     
     def server_prepare(self, **kwargs):
         return
@@ -141,8 +142,7 @@ class FedNCFModel(NCF, FedParamSpliter):
         return super().forward(user, item)
     
     def _reinit_private_params(self):
-        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
-        nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
+        self._init_weight_()
     
     def server_prepare(self, **kwargs):
         return
