@@ -47,8 +47,8 @@ def run_server(
     
     model.to(cfg.TRAIN.device)
 
-    loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
-    # loss_fn = torch.nn.BCEWithLogitsLoss()
+    # loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
+    loss_fn = torch.nn.BCEWithLogitsLoss()
 
     logging.info("Init clients")
     client_sampler = ClientSampler(feddm.num_users, n_workers=1)

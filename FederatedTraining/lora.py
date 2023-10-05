@@ -43,6 +43,7 @@ class Embedding(nn.Embedding, LoRALayer):
                            merge_weights=merge_weights)
         # Actual trainable parameters
         self._r = r
+        self._embedding_dim = embedding_dim
         if r > 0:
             logging.info("Init lora A and B")
             self.lora_A = nn.Parameter(self.weight.new_zeros((num_embeddings, r)))
@@ -73,7 +74,7 @@ class Embedding(nn.Embedding, LoRALayer):
                 elif init_B_strategy == "orthnorm":
                     nn.init.normal_(self.lora_B)
                     U, S, Vh = torch.linalg.svd(self.lora_B.data, full_matrices=False)
-                    self.lora_B.data = U @ Vh
+                    self.lora_B.data = (U @ Vh) * math.sqrt(self.embedding_dim / self._r)
                 elif init_B_strategy == 'zeros':
                     nn.init.zeros_(self.lora_B)
                 elif init_B_strategy == 'random_rotation':
