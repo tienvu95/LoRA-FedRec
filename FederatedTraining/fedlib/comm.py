@@ -58,27 +58,31 @@ class ClientSampler:
         participants = self._client_set[:num_clients]
         # rotate the list by `num_clients`
         self._client_set =  self._client_set[num_clients:] + participants
-        self._client_count += num_clients
+        # self._client_count += num_clients
         self._round_count += 1
 
         total_ds_sizes = 0
         for i in range(len(participants)):
-            client_permuted_index, cid, train_loader = self.queue.get()
+            worker_id = self._client_count % self._n_workers
+            client_permuted_index, cid, train_loader = self.queue[worker_id].get()
             assert participants[i].cid == cid
             train_loader = pickle.loads(train_loader)
             participants[i].train_loader = train_loader
             total_ds_sizes += len(train_loader.dataset)
+            self._client_count += 1
             # yield participants[i]
         return participants, total_ds_sizes
 
     def prepare_dataloader(self, n_clients_per_round) -> None:
         self.processors = []
-        self.queue = Queue(maxsize=n_clients_per_round)
+        self._n_workers = 8
+        self.queue = [Queue(maxsize=n_clients_per_round) for _ in range(self._n_workers)]
+        # for i in range(self._n_workers):
         for i in range(self._n_workers):
             print(f'Starting worker {i}')
             process = Process(
                 target=_prepare_dataloader,
-                args=(self._client_set, i, self._n_workers, self.queue)
+                args=(self._client_set, i, self._n_workers, self.queue[i])
             )
             self.processors.append(process)
             process.daemon = True
