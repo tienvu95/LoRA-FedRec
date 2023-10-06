@@ -34,8 +34,18 @@ class TransferedParams(OrderedDict):
         return self.add_(other, alpha=alpha)
     
     def div_scalar_(self, scalar):
+        private_inter_track = self["private_inter_track"]
+        print("inter track", private_inter_track, (private_inter_track == 0).sum().item())
+        private_inter_track.clamp_(min=1)
         for key, val in self.items():
-            self[key] /= scalar
+            if key == "private_inter_track":
+                continue
+            #     print("inter track", val)
+            if "item" in key and "emb" in key:
+                self[key] = val / private_inter_track.unsqueeze(-1)
+            else:
+                self[key] /= scalar
+        self["private_inter_track"] *= 0
         return self
 
     def compress(self, method='svd', **kwargs):
@@ -63,7 +73,8 @@ class TransferedParams(OrderedDict):
         pass
 
 class FedParamSpliter:
-    def __init__(self) -> None:
+    def __init__(self, item_num) -> None:
+        self.register_buffer('private_inter_track', torch.zeros(item_num, dtype=torch.long))
         pass
 
     def get_server_params(self, **kwargs):
@@ -97,12 +108,16 @@ class FedParamSpliter:
         params_dict = dict(private_params, **submit_params)
         state_dict = OrderedDict(params_dict)
         self.load_state_dict(state_dict, strict=True)
+        self.private_inter_track = torch.zeros_like(self.private_inter_track)
 
 class FedMF(MF, FedParamSpliter):
     def __init__(self, item_num, gmf_emb_size=16, user_num=1):
         MF.__init__(self, user_num, item_num, gmf_emb_size)
+        FedParamSpliter.__init__(self, item_num)
 
     def forward(self, user, item, mask_zero_user_index=True):
+        self.private_inter_track[item] += 1
+        self.private_inter_track[item] %= 2
         if mask_zero_user_index:
             user = torch.zeros_like(user)
         return super().forward(user, item)
@@ -134,6 +149,8 @@ class FedNCFModel(NCF, FedParamSpliter):
         NCF.__init__(self, user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout)
         FedParamSpliter.__init__(self)
         self.user_num = user_num
+
+        self.register_buffer('item_inter_weight', torch.zeros(item_num, dtype=torch.long))
 
     def forward(self, user, item, mask_zero_user_index=True):
         if mask_zero_user_index:
