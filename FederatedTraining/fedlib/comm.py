@@ -102,7 +102,7 @@ class ClientSampler:
 class AvgAggregator:
     def __init__(self, sample_params: TransferedParams, strategy='fedavg') -> None:
        self.aggregated_params = sample_params.zero_likes()
-       self.count = 0
+       self.count = 0.
        self.strategy = strategy
         
     def collect(self, params: TransferedParams, weight=1):
@@ -112,9 +112,10 @@ class AvgAggregator:
             self.count += weight
         elif self.strategy == 'simpleavg':
             self.aggregated_params = self.aggregated_params.add_(params)
-            self.count += 1
+            self.count += 1.
         else:
             raise NotImplementedError(f'Aggregation strategy {self.strategy} not implemented')
 
     def finallize(self):
         return self.aggregated_params.div_scalar_(self.count)
+        # return self.aggregated_params

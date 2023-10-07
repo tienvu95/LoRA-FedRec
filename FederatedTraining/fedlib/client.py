@@ -7,6 +7,7 @@ from tqdm import tqdm
 from .standard.models import FedNCFModel, TransferedParams
 from fedlib.data import FedDataModule
 from stats import TimeStats
+import math
 
 class Client:
     def __init__(
@@ -78,20 +79,27 @@ class Client:
         # else:
             # opt_params = self._model.parameters()
         if config.TRAIN.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
+            optimizer = torch.optim.SGD(opt_params, lr=config.TRAIN.lr,) # weight_decay=config.TRAIN.weight_decay)
         elif config.TRAIN.optimizer == 'adam':
-            optimizer = torch.optim.Adam(opt_params, lr=config.TRAIN.lr, weight_decay=config.TRAIN.weight_decay)
+            optimizer = torch.optim.Adam(opt_params, lr=config.TRAIN.lr,) # weight_decay=config.TRAIN.weight_decay)
 
 
         with stats_logger.timer('fit'):
-            metrics = self._fit(train_loader, optimizer, self.loss_fn, num_epochs=local_epochs, device=device, base_lr=config.TRAIN.lr, **forward_kwargs)
+            metrics = self._fit(train_loader, 
+                                optimizer, 
+                                self.loss_fn, 
+                                num_epochs=local_epochs, 
+                                device=device, 
+                                base_lr=config.TRAIN.lr, 
+                                wd=config.TRAIN.weight_decay, 
+                                **forward_kwargs)
         
         with torch.no_grad():
             with stats_logger.timer('get_parameters'):
                 sharable_params = self.get_parameters(None, server_params)
                 update = None
                 if server_params is not None:
-                    update = sharable_params.diff(server_params)
+                    update = sharable_params.sub(server_params)
 
                     with stats_logger.timer('compress'):
                         update.compress(**config.FED.compression_kwargs)
@@ -99,7 +107,7 @@ class Client:
         # stats_logger.stats_transfer_params(cid=self._cid, stat_dict=self._model.stat_transfered_params(update))
         return update, len(train_loader.dataset), metrics
     
-    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, base_lr, **forward_kwargs):
+    def _fit(self, train_loader, optimizer, loss_fn, num_epochs, device, base_lr, wd, **forward_kwargs):
         self._model.train() # Enable dropout (if have).
         loss_hist = []
         # print("User", self.cid, end=" - ")
@@ -111,56 +119,45 @@ class Client:
                 item = item.to(device)
                 label = label.float().to(device)
 
-                optimizer.param_groups[0]['lr'] = base_lr * len(item)
-                # print("lr", optimizer.param_groups[0]['lr'])
-                # print(len(item))
-                # print(optimizer.param_groups[0]['lr'])
+                scale_lr_item_emb = len(set(item.tolist()))
+                optimizer.param_groups[0]['lr'] = base_lr * scale_lr_item_emb
 
                 optimizer.zero_grad()
                 prediction = self._model(user, item, **forward_kwargs)
                 loss = loss_fn(prediction, label)
 
+                reg_loss = 0
+                for name, param in self._model.named_parameters():
+                    if "emb" in name:
+                        continue
+                    else:
+                        reg_loss += (param**2).sum()
+                item_emb = self._model.embed_item_GMF.weight[item]
+                user_emb = self._model.embed_user_GMF.weight[0]
+                reg_loss += (item_emb**2).sum() / scale_lr_item_emb + (user_emb**2).sum()
+                loss += reg_loss * wd * 0.5
+
                 # l2_loss = 0
 
-
                 loss.backward()
-
-                if user[0].item() == 782:
-                    print("User", self.cid, "epoch", e, end=" - ")
-                    with torch.no_grad():
-                        grad_item_emb = self._model.embed_item_GMF.weight.grad
-                        grad_item_emb_norms = torch.norm(grad_item_emb, p=2, dim=1)
-                        grad_item_emb_norms = grad_item_emb_norms[item].mean().item()
-                        grad_user_emb = self._model.embed_user_GMF.weight.grad
-                        grad_user_emb_norms = torch.norm(grad_user_emb, p=2, dim=1)
-                        grad_user_emb_norms = grad_user_emb_norms[0].item()
-
-                        item_emb = self._model.embed_item_GMF.weight[item]
-                        user_emb = self._model.embed_user_GMF.weight[0]
-                        
-                        # print("rating: %d" % (label[0].item(),), end=";")
-                        print("pred: %f" % (torch.sigmoid(prediction[0]).item(),), end="; ")
-                        print("loss: %f" % (loss.item(),), end="; ")
-                        print("item: %f" % (grad_item_emb_norms*len(item), ), end="; ")
-                        print("user: %f" % (grad_user_emb_norms, ), end="; ")
-                        print(item_emb.norm(dim=1).mean().item(), user_emb.norm().item())
-
                 optimizer.step()
 
                 count_example += 1
                 total_loss += loss.item()
-            
             total_loss /= count_example
             loss_hist.append(total_loss)
-            # print('------------------')
-        # exit(0)
+
         with torch.no_grad():
-            item_emb = self._model.embed_item_GMF.weight[item]
+            if self._model.is_lora:
+                lora_comp = (self._model.embed_item_GMF.lora_A @ self._model.embed_item_GMF.lora_B) * self._model.embed_item_GMF.lora_scaling
+                item_emb_weight = self._model.embed_item_GMF.weight.data + lora_comp
+            else:
+                item_emb_weight = self._model.embed_item_GMF.weight.data
+            item_emb = item_emb_weight[item]
             user_emb = self._model.embed_user_GMF.weight[0]
 
-            item_avg_norm = item_emb.norm(dim=1).mean().item(), 
+            item_avg_norm = item_emb.norm(dim=1).mean().item() 
             user_norm = user_emb.norm().item()
-
         return {
             "loss": loss_hist,
             "item_avg_norm": item_avg_norm,
