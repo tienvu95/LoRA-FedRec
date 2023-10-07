@@ -45,6 +45,10 @@ class MF(nn.Module):
         output_GMF = self._gmf_forward(user, item)
         prediction = output_GMF.sum(dim=-1)
         return prediction.view(-1)
+    
+    @property
+    def is_lora(self):
+        return False
 
 class NCF(nn.Module):
     def __init__(self, user_num, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16],
@@ -121,6 +125,10 @@ class NCF(nn.Module):
         prediction = self.predict_layer(concat)
         return prediction.view(-1)
 
+    @property
+    def is_lora(self):
+        return False
+
 class LoraNCF(NCF):
     def __init__(self, user_num, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., lora_rank=4, lora_alpha=4, freeze_B=False):
         ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
@@ -136,6 +144,10 @@ class LoraNCF(NCF):
         self.embed_item_GMF.reset_lora_parameters(init_B_strategy=init_B_strategy, keep_B=keep_B)
         self.embed_item_MLP.reset_lora_parameters(init_B_strategy=init_B_strategy, keep_B=keep_B)
     
+    @property
+    def is_lora(self):
+        return True
+    
 class LoraMF(MF):
     def __init__(self, user_num, item_num, gmf_emb_size=16, lora_rank=4, lora_alpha=4, freeze_B=False):
         ItemEmbLayer = lambda num_emb, emb_dim: lora.Embedding(num_emb, emb_dim, r=lora_rank, lora_alpha=lora_alpha)
@@ -148,3 +160,7 @@ class LoraMF(MF):
     
     def _reset_all_lora_weights(self,  init_B_strategy, keep_B=False):
         self.embed_item_GMF.reset_lora_parameters(init_B_strategy=init_B_strategy, keep_B=keep_B)
+
+    @property
+    def is_lora(self):
+        return True
