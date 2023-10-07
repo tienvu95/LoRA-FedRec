@@ -79,7 +79,7 @@ class Embedding(nn.Embedding, LoRALayer):
                     nn.init.zeros_(self.lora_B)
                 elif init_B_strategy == 'random_rotation':
                     generator = torch.Generator().manual_seed(12345)
-                    emb_sz = self.lora_B.shape[1]
+                    emb_sz = self._embedding_dim
                     # Random rotation matrix
                     U = torch.randn(emb_sz, emb_sz, generator=generator)
                     Q, R = torch.linalg.qr(U)

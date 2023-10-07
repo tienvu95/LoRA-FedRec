@@ -13,11 +13,13 @@ class LoRATransferedParams(OrderedDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def diff(self, other):
+    def sub(self, other):
         diff = LoRATransferedParams()
         for key, val in self.items():
             if 'lora' in key:
-                diff[key] = val
+                diff[key] = val.clone()
+            elif key == "private_inter_mask":
+                diff[key] = val.clone()
             else:
                 diff[key] = val - other[key]
         return diff
@@ -29,21 +31,41 @@ class LoRATransferedParams(OrderedDict):
         return zero_likes
     
     def add_(self, other, alpha=1):
+        other_private_inter_mask = other["private_inter_mask"]
         for key, val in other.items():
-            self[key] += alpha*val
+            if "item" in key and "emb" in key and "lora_A" in key:
+                # add item embedding
+                # print("add lora A")
+                self[key] += val * other_private_inter_mask.unsqueeze(-1)
+                # self[key] += val
+            elif key == "private_inter_mask":
+                self["private_inter_mask"] = self["private_inter_mask"] + other["private_inter_mask"]
+            else:
+                self[key] += alpha*val
         return self
 
     def server_step_(self, other, alpha=1):
         for key, val in other.items():
             if 'lora' in key:
                 self[key] = alpha*val
+            elif key == "private_inter_mask":
+                continue
             else:
                 self[key] += alpha*val
         return self
     
     def div_scalar_(self, scalar):
+        private_inter_mask = self["private_inter_mask"]
+        # print("inter track", private_inter_mask, (private_inter_mask == 0).sum().item())
+        private_inter_mask[private_inter_mask == 0] = 1
         for key, val in self.items():
-            self[key] /= scalar
+            if key == "private_inter_mask":
+                continue
+            elif "item" in key and "emb" in key and "lora_A" in key:
+                self[key] /= private_inter_mask.unsqueeze(-1)
+                # self[key] /= 60
+            else:
+                self[key] /= scalar
         return self
 
     def compress(self, method='svd', **kwargs):
@@ -53,7 +75,8 @@ class LoRATransferedParams(OrderedDict):
         return
 
 class FedLoraParamsSplitter:
-    def __init__(self) -> None:
+    def __init__(self, item_num) -> None:
+        self.register_buffer('private_inter_mask', torch.zeros(item_num, dtype=torch.long))
         pass
 
     def get_server_params(self, **kwargs):
@@ -65,6 +88,8 @@ class FedLoraParamsSplitter:
     def _get_splited_params(self, server_init=False, **kwarfs):
         submit_params = LoRATransferedParams()
         private_params = {}
+        # self._merge_all_lora_weights()
+        # self._reset_all_lora_weights(init_B_strategy='zeros', keep_B=False)
         for key, val in self.state_dict().items():
             if 'user' in key:
                 private_params[key] = val.detach().clone()
@@ -72,9 +97,17 @@ class FedLoraParamsSplitter:
                 if server_init:
                     submit_params[key] = val.detach().clone()
                 else:
+                    # if 'lora_B' in key:
+                    #     print(val[0, :10])
+                        # val = val.zero_()
+                        
                     if any([n in key for n in self.lora_layer_names]):
+                        # lora_comp = (self._model.embed_item_GMF.lora_A @ self._model.embed_item_GMF.lora_B) * self._model.embed_item_GMF.lora_scaling
                         if 'weight' in key:
                             continue
+                    elif key == "private_inter_mask":
+                        submit_params[key] = val.detach().clone().clamp_(max=1)
+                # print("p", private_params[key])
                     submit_params[key] = val.detach().clone()
         # print(list(submit_params.keys()))
         return private_params, submit_params
@@ -91,6 +124,9 @@ class FedLoraParamsSplitter:
         self.load_state_dict(state_dict, strict=True)
         self._merge_all_lora_weights()
         self._reset_all_lora_weights(init_B_strategy=None, keep_B=self.freeze_B)
+        # self._reset_all_lora_weights(init_B_strategy="random-scaling", keep_B=False)
+        self.private_inter_mask = torch.zeros_like(self.private_inter_mask)
+
 
     def _get_splited_params_for_optim(self, **kwarfs):
         submit_params = []
@@ -110,6 +146,7 @@ class FedLoraNCF(LoraNCF, FedLoraParamsSplitter):
             self.embed_item_MLP.lora_B.requires_grad = False
     
     def forward(self, user, item, mask_zero_user_index=True):
+        self.private_inter_mask[item] = 1
         if mask_zero_user_index:
             user = torch.zeros_like(user)
         return super().forward(user, item)
@@ -145,8 +182,7 @@ class FedLoraNCF(LoraNCF, FedLoraParamsSplitter):
         self._reset_all_lora_weights(keep_B=False, **kwargs)
     
     def _reinit_private_params(self):
-        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
-        nn.init.normal_(self.embed_user_MLP.weight, std=0.01)
+        self._init_weight_()
     
     # def _reinit_B(self):
     #     print("Reinit B")
@@ -166,11 +202,13 @@ class FedLoraNCF(LoraNCF, FedLoraParamsSplitter):
     
 class FedLoraMF(LoraMF, FedLoraParamsSplitter):
     def __init__(self, item_num, gmf_emb_size=16, lora_rank=4, lora_alpha=4, freeze_B=False, user_num=1):
-        super().__init__(user_num, item_num, gmf_emb_size, lora_rank, lora_alpha, freeze_B)
+        LoraMF.__init__(self, user_num, item_num, gmf_emb_size, lora_rank, lora_alpha, freeze_B)
+        FedLoraParamsSplitter.__init__(self, item_num)
         if self.freeze_B:
             self.embed_item_GMF.lora_B.requires_grad = False
     
     def forward(self, user, item, mask_zero_user_index=True):
+        self.private_inter_mask[item] = 1
         if mask_zero_user_index:
             user = torch.zeros_like(user)
         return super().forward(user, item)
@@ -179,7 +217,7 @@ class FedLoraMF(LoraMF, FedLoraParamsSplitter):
         self._reset_all_lora_weights(keep_B=False, **kwargs)
     
     def _reinit_private_params(self):
-        nn.init.normal_(self.embed_user_GMF.weight, std=0.01)
+        self._init_weight_()
     
     # def _reinit_B(self):
     #     print("Reinit B")

@@ -5,6 +5,7 @@ from collections import OrderedDict
 import torch.nn as nn
 import torch.nn.functional as F 
 import lora
+import math
 
 class MF(nn.Module):
     def __init__(self, user_num, item_num, gmf_emb_size=16, ItemEmbedding=nn.Embedding):
@@ -164,3 +165,7 @@ class LoraMF(MF):
     @property
     def is_lora(self):
         return True
+    
+    @property
+    def lora_scale_lr(self):
+        return math.sqrt(self.embed_item_GMF._r / self.embed_item_GMF._embedding_dim)

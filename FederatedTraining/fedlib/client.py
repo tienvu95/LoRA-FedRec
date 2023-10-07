@@ -120,6 +120,8 @@ class Client:
                 label = label.float().to(device)
 
                 scale_lr_item_emb = len(set(item.tolist()))
+                if self._model.is_lora:
+                    scale_lr_item_emb *= self._model.lora_scale_lr
                 optimizer.param_groups[0]['lr'] = base_lr * scale_lr_item_emb
 
                 optimizer.zero_grad()

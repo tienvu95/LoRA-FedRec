@@ -5,5 +5,5 @@ init:
   lora_alpha: ${net.init.lora_rank}
   freeze_B: True
 server_prepare_kwargs:
-  init_B_strategy: "random"
+  init_B_strategy: "random-scaling"
 name: fedmf${net.init.gmf_emb_size}_lora${net.init.lora_rank}_freezeB
