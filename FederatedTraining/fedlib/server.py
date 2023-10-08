@@ -21,6 +21,8 @@ class SimpleServer:
         self._timestats = TimeStats()
     
     def _step_server_optim(self, delta_params):
+        delta_params.compress(**self.cfg.FED.compression_kwargs)
+        delta_params.decompress()
         self.server_params.server_step_(delta_params)
         self.model._set_state_from_splited_params([self._dummy_private_params, self.server_params])
     
@@ -43,10 +45,10 @@ class SimpleServer:
 
         self._timestats.set_aggregation_epoch(epoch_idx)
 
-        with self._timestats.timer("server_time"):
-            if epoch_idx > 0:
-                self.server_params.compress(**self.cfg.FED.compression_kwargs)
-                self.server_params.decompress()
+        # with self._timestats.timer("server_time"):
+        #     if epoch_idx > 0:
+        #         self.server_params.compress(**self.cfg.FED.compression_kwargs)
+        #         self.server_params.decompress()
 
         pbar = tqdm.tqdm(participants, desc='Training', disable=True)
         update_numel = 0
