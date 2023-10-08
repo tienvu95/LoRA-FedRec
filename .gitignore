@@ -167,6 +167,5 @@ MF/sh_result
 exp/
 outputs/
 *.bk
-dataset/
 wandb/
 figures/
