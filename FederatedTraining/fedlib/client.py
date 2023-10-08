@@ -123,21 +123,19 @@ class Client:
                 if self._model.is_lora:
                     scale_lr_item_emb *= self._model.lora_scale_lr
                 optimizer.param_groups[0]['lr'] = base_lr * scale_lr_item_emb
-
+ 
                 optimizer.zero_grad()
                 prediction = self._model(user, item, **forward_kwargs)
                 loss = loss_fn(prediction, label)
-
-                reg_loss = 0
-                for name, param in self._model.named_parameters():
-                    if "emb" in name:
-                        continue
-                    else:
-                        reg_loss += (param**2).sum()
-                item_emb = self._model.embed_item_GMF.weight[item]
-                user_emb = self._model.embed_user_GMF.weight[0]
-                reg_loss += (item_emb**2).sum() / scale_lr_item_emb + (user_emb**2).sum()
+                
+                reg_loss = self._model.reg_loss(item, user[:1]*0, scale_item_reg=1/scale_lr_item_emb)
+                # print("losses")
+                # print(item_emb_reg)
+                # print(user_emb_reg)
+                # reg_loss += item_emb_reg + user_emb_reg
+                # print(loss, reg_loss * wd * 0.5)
                 loss += reg_loss * wd * 0.5
+                # print(loss)
 
                 # l2_loss = 0
 
@@ -146,6 +144,7 @@ class Client:
 
                 count_example += 1
                 total_loss += loss.item()
+                # exit(0)
             total_loss /= count_example
             loss_hist.append(total_loss)
 

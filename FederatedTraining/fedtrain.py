@@ -54,30 +54,35 @@ def run_server(
     client_sampler = ClientSampler(feddm.num_users, n_workers=1)
     client_sampler.initialize_clients(model, feddm, loss_fn=loss_fn, shuffle_seed=42)
     client_sampler.prepare_dataloader(n_clients_per_round=cfg.FED.num_clients*10)
+    try:
+        logging.info("Init server")
+        server = fedlib.server.SimpleServer(cfg, model, client_sampler)
 
-    logging.info("Init server")
-    server = fedlib.server.SimpleServer(cfg, model, client_sampler)
+        for epoch in range(cfg.FED.agg_epochs):
+            log_dict = {"epoch": epoch}
+            log_dict.update(server.train_round(epoch_idx=epoch))
+            nan_flag = False
+            if (cfg.EVAL.interval > 0) and ((epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1)):                
+                test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
+                if math.isnan(test_metrics['train/loss']):
+                    nan_flag = True
+                log_dict.update(test_metrics)
 
-    for epoch in range(cfg.FED.agg_epochs):
-        log_dict = {"epoch": epoch}
-        log_dict.update(server.train_round(epoch_idx=epoch))
-        nan_flag = False
-        if (cfg.EVAL.interval > 0) and ((epoch % cfg.EVAL.interval == 0) or (epoch == cfg.FED.agg_epochs - 1)):                
-            test_metrics = server.evaluate(val_loader, test_loader, train_loader=all_train_loader)
-            if math.isnan(test_metrics['train/loss']):
-                nan_flag = True
-            log_dict.update(test_metrics)
-
-        time_log = {f"time/{k}": v for k, v in server._timestats._time_dict.items()}
-        log_dict.update(time_log)
-        if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
-            mylogger.log(log_dict, term_out=True)
-        server._timestats.reset('client_time', 'server_time')
-        if nan_flag:
-            break
-    client_sampler.close()
-    hist_df = mylogger.finish(quiet=True)
-    pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
+            time_log = {f"time/{k}": v for k, v in server._timestats._time_dict.items()}
+            log_dict.update(time_log)
+            if (epoch % cfg.TRAIN.log_interval == 0) or (epoch == cfg.FED.agg_epochs - 1):
+                mylogger.log(log_dict, term_out=True)
+            server._timestats.reset('client_time', 'server_time')
+            if nan_flag:
+                break
+    except KeyboardInterrupt:
+        logging.info("Interrupted")
+    except Exception as e:
+        logging.exception(e)
+    finally:
+        client_sampler.close()
+        hist_df = mylogger.finish(quiet=True)
+        pca_var_df = pd.DataFrame(data=server._timestats._pca_vars)
     return hist_df, pca_var_df, log_dict
 
 def get_metric_value(metric_dict: Dict[str, Any], metric_name: Optional[str]) -> Optional[float]:

@@ -167,10 +167,28 @@ class FedMF(MF, FedParamSpliter):
         explain_variance_ratio = cal_explain_variance_ratio(item_emb)
         return {"mf_item_emb_explain_variance_ratio": explain_variance_ratio}
 
+    def reg_loss(self, item, user, scale_item_reg=1):
+        reg_loss = 0
+        for name, param in self.named_parameters():
+            if "emb" in name:
+                continue
+            else:
+                reg_loss += (param**2).sum()
+        gmf_item_emb = self.embed_item_GMF(item)
+        gmf_user_emb = self.embed_user_GMF(user)
+        
+        item_emb_reg = (gmf_item_emb**2).sum() * scale_item_reg
+        user_emb_reg = (gmf_user_emb**2).sum()
+
+        # item_emb_reg *= self._model.lora_scale_lr
+
+        reg_loss += item_emb_reg + user_emb_reg
+        return reg_loss
+
 class FedNCFModel(NCF, FedParamSpliter):
     def __init__(self, item_num, gmf_emb_size=16, mlp_emb_size=64, mlp_layer_dims=[128, 64, 32, 16], dropout=0., user_num=1):
         NCF.__init__(self, user_num, item_num, gmf_emb_size, mlp_emb_size, mlp_layer_dims, dropout)
-        FedParamSpliter.__init__(self)
+        FedParamSpliter.__init__(self, item_num)
         self.user_num = user_num
 
     def forward(self, user, item, mask_zero_user_index=True):
@@ -195,3 +213,25 @@ class FedNCFModel(NCF, FedParamSpliter):
         eval_model.embed_user_GMF = torch.nn.Embedding.from_pretrained(client_weights['embed_user_GMF.weight'])
         eval_model.embed_user_MLP = torch.nn.Embedding.from_pretrained(client_weights['embed_user_MLP.weight'])
         return eval_model
+
+    def reg_loss(self, item, user, scale_item_reg=1):
+        reg_loss = 0
+        for name, param in self.named_parameters():
+            if "emb" in name:
+                continue
+            else:
+                reg_loss += (param**2).sum()
+        gmf_item_emb = self.embed_item_GMF(item)
+        gmf_user_emb = self.embed_user_GMF(user)
+        mlp_item_emb = self.embed_item_MLP(item)
+        mlp_user_emb = self.embed_user_MLP(user)
+        
+        item_emb_reg = (gmf_item_emb**2).sum() * scale_item_reg
+        item_emb_reg += (mlp_item_emb**2).sum() * scale_item_reg
+        user_emb_reg = (gmf_user_emb**2).sum()
+        user_emb_reg += (mlp_user_emb**2).sum()
+
+        # item_emb_reg *= self._model.lora_scale_lr
+
+        reg_loss += item_emb_reg + user_emb_reg
+        return reg_loss
